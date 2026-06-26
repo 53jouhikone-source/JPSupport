@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="5">
+    <Name Value="JPSupport"/>
+    <Type Value="RunAndDesignTime"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <Other>
+        <CustomOptions Value="-dWITH_GTK2_IM"/>
+      </Other>
+      <SearchPaths>
+        <OtherUnitFiles Value="."/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Description Value="Japanese IME support for TSynEdit on GTK2/Linux"/>
+    <License Value="MIT"/>
+    <Version Major="1"/>
+    <Files Count="2">
+      <Item1>
+        <Filename Value="JPSupportUnit.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="JPSupportUnit"/>
+      </Item1>
+      <Item2>
+        <Filename Value="JPSupportAdapter.pas"/>
+        <UnitName Value="JPSupportAdapter"/>
+      </Item2>
+    </Files>
+    <CompatibilityMode Value="True"/>
+    <RequiredPkgs Count="2">
+      <Item1>
+        <PackageName Value="SynEdit"/>
+      </Item1>
+      <Item2>
+        <PackageName Value="LCL"/>
+      </Item2>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>

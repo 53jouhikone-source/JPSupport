@@ -2,21 +2,21 @@
   This source is only used to compile and install the package.
  }
 
-unit JPSupport;
+unit JPSupportIDE;
 
 {$warn 5023 off : no warning about unused units}
 interface
 
 uses
-  JPSupportUnit, JPSupportAdapter, LazarusPackageIntf;
+  JPSupportIDEMain, LazarusPackageIntf;
 
 implementation
 
 procedure Register;
 begin
-  RegisterUnit('JPSupportUnit', @JPSupportUnit.Register);
+  RegisterUnit('JPSupportIDEMain', @JPSupportIDEMain.Register);
 end;
 
 initialization
-  RegisterPackage('JPSupport', @Register);
+  RegisterPackage('JPSupportIDE', @Register);
 end.

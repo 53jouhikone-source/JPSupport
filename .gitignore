@@ -1,0 +1,18 @@
+# コンパイル生成物
+package/lib/
+package/*.ppu
+package/*.o
+package/*.compiled
+package/backup/
+
+# 不要ファイル
+package/JPSupportIntf.pas
+package/JPSupportIntf.lpk
+package/JPSupportIDEPlugin.pas
+
+# デモアプリのバイナリ
+demo/*/lib/
+demo/*/*.o
+demo/*/*.ppu
+demo/*/project1
+docs/handover_claude.md
