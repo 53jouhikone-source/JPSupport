@@ -1,4 +1,4 @@
-// 0036
+// 0037
 unit JPSupportAdapter;
 
 {$mode objfpc}{$H+}
@@ -291,7 +291,6 @@ begin
   if FIMFocused then Exit;
   FIMFocused := True;
   FIMActive  := True;
-  WriteLn('[DoEnter] FIMFocused set True');
   Flush(Output);
   { LCLのim_contextにもfocus_inを通知（Fcitx5との連携に必要） }
   if im_context <> nil then
@@ -302,12 +301,10 @@ begin
   UpdateCursorLocation;
 
   { 独自IMContextを作成のみ（シグナル登録・keypressフックは後で） }
-  WriteLn('[DoEnter] before FMyIMContext check');
   Flush(Output);
   if FMyIMContext = nil then
   begin
     FMyIMContext := gtk_im_multicontext_new;
-    WriteLn('[DoEnter] MyIMContext created=', PtrUInt(FMyIMContext));
     Flush(Output);
   end;
   gtk_im_context_set_client_window(FMyIMContext, FGdkWindow);
@@ -331,15 +328,12 @@ begin
   g_signal_connect(FMyIMContext, 'commit',
     TGCallback(@GTK_CommitSignal), Self);
 
-  WriteLn('[DoEnter] before snooper install');
   Flush(Output);
   { key snooper でキーイベントを横取り（Widget再生成の影響を受けない） }
-  WriteLn('[DoEnter] FSnooperID=', FSnooperID);
   Flush(Output);
   if FSnooperID = 0 then
   begin
     FSnooperID := gtk_key_snooper_install(@SnooperFunc, Self);
-    WriteLn('[DoEnter] Snooper installed ID=', FSnooperID);
     Flush(Output);
   end;
 end;
