@@ -73,6 +73,10 @@ Key files:
 - GTK2 backend only (GTK3 and Qt versions not supported)
 - IBus and Fcitx5 confirmed working
 
+## Note for Chinese and Korean Users
+
+Since JPSupport uses `gtk_key_snooper_install` to globally intercept key events and forward them to a custom GtkIMContext, this approach should also work in principle for Chinese and Korean input methods (such as Fcitx5/IBus with Pinyin or Hangul). Feedback from Chinese and Korean users would be very welcome.
+
 ## License
 
 MIT License
