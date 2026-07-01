@@ -73,6 +73,10 @@ GTK2の`gtk_key_snooper_install`を使用してキーイベントをグローバ
 - 画面描画システム(GTK2)バックエンドのみ対応（GTK3・Qt版は未対応）
 - IBus・Fcitx5ともに動作確認済み
 
+## 中国語・韓国語ユーザーへの注記
+
+JPSupportは`gtk_key_snooper_install`を使用してキーイベントをグローバルに横取りし、独自のGtkIMContextに転送する方式を採用しています。この方式は原理的に中国語・韓国語の入力メソッド（Fcitx5/IBus + Pinyin、Hangulなど）にも応用できる可能性があります。中国語・韓国語ユーザーからのフィードバックを歓迎します。
+
 ## ライセンス
 
 MITライセンス
