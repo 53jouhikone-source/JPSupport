@@ -149,9 +149,21 @@ end;
 var
   AllOK: Boolean;
   GTK_IM, XMOD, IMModPath, IMServer, PKGCheck: string;
+  Answer: string;
 begin
   AllOK := True;
-  WriteLn('=== JPSupport 環境診断 ===');
+  WriteLn('=== JPSupport 環境診断 v1.0 ===');
+  WriteLn('');
+  WriteLn('このプログラムはLazarusのソースエディタに一時的にキー入力を行います。');
+  WriteLn('ソースエディタの内容は元に戻しますが、念のため保存してから実行してください。');
+  WriteLn('テスト中はソースエディタが一時的に操作されます。驚かないでください。');
+  Write('続行しますか？ [Y/N]: ');
+  ReadLn(Answer);
+  if (Answer <> 'Y') and (Answer <> 'y') then
+  begin
+    WriteLn('中止しました。');
+    Halt(0);
+  end;
   WriteLn('');
 
   // ① 環境変数チェック
