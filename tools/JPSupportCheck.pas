@@ -87,7 +87,6 @@ var
     Sleep(500);
     RunCommand('fcitx5-remote -o');
     Sleep(500);
-    RunCommand('xdotool key --window ' + LazarusWinID + ' 0xff2a');
     Sleep(500);
     RunCommand('xdotool type --window ' + LazarusWinID + ' "a"');
     Sleep(500);
