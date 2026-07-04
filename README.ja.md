@@ -68,6 +68,18 @@ GTK2の`gtk_key_snooper_install`を使用してキーイベントをグローバ
 - `JPSupportIDEMain.pas` — Lazarusへの組み込み処理
 - `JPSupportUnit.pas` — スタンドアロン版コンポーネント
 
+## トラブルシューティング
+
+日本語入力がうまくいかない場合は、`tools/JPSupportCheck`を使って環境を診断できます。
+
+Lazarusを起動した状態でターミナルから以下を実行してください：
+
+```bash
+~/Projects/JPSupport/tools/JPSupportCheck
+```
+
+①〜⑤の項目を自動チェックし、問題がある場合はヒントを表示します。
+
 ## 既知の制限事項
 
 - 画面描画システム(GTK2)バックエンドのみ対応（GTK3・Qt版は未対応）

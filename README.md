@@ -68,6 +68,18 @@ Key files:
 - `JPSupportIDEMain.pas` — Lazarus integration
 - `JPSupportUnit.pas` — Standalone component
 
+## Troubleshooting
+
+If Japanese input is not working, use `tools/JPSupportCheck` to diagnose your environment.
+
+Launch Lazarus first, then run the following from a terminal:
+
+```bash
+~/Projects/JPSupport/tools/JPSupportCheck
+```
+
+It automatically checks items ① through ⑤ and displays hints if any problems are found.
+
 ## Known Limitations
 
 - GTK2 backend only (GTK3 and Qt versions not supported)
