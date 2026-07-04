@@ -163,6 +163,7 @@ begin
   else
   begin
     WriteLn('① GTK_IM_MODULE=' + GTK_IM + ' ... NG');
+    WriteLn('  ヒント: im-configコマンドでfcitx5またはibusを選択し、ログアウト→ログインしてください。');
     AllOK := False;
   end;
 
@@ -171,6 +172,7 @@ begin
   else
   begin
     WriteLn('  XMODIFIERS=' + XMOD + ' ... NG');
+    WriteLn('  ヒント: im-configコマンドでfcitx5またはibusを選択し、ログアウト→ログインしてください。');
     AllOK := False;
   end;
 
@@ -181,6 +183,7 @@ begin
   else
   begin
     WriteLn('② GTK2 IMモジュール ... NG');
+    WriteLn('  ヒント: sudo apt install fcitx5-frontend-gtk2 または sudo apt install ibus-gtk を実行してください。');
     AllOK := False;
   end;
 
@@ -193,6 +196,7 @@ begin
     else
     begin
       WriteLn('③ IMサーバー(Fcitx5) ... NG');
+      WriteLn('  ヒント: fcitx5 & を実行してください。');
       AllOK := False;
     end;
   end
@@ -204,6 +208,7 @@ begin
     else
     begin
       WriteLn('③ IMサーバー(IBus) ... NG');
+      WriteLn('  ヒント: ibus-daemon -drx を実行してください。');
       AllOK := False;
     end;
   end;
@@ -215,6 +220,7 @@ begin
   else
   begin
     WriteLn('④ JPSupportインストール ... NG');
+    WriteLn('  ヒント: README.ja.mdのインストール手順を参照してください。');
     AllOK := False;
   end;
 
@@ -225,6 +231,8 @@ begin
   else
   begin
     WriteLn('NG');
+    WriteLn('  ヒント: Lazarusを起動した状態で再実行してください。それでも失敗する場合はGitHubにIssueを登録してください。');
+    WriteLn('  https://github.com/53jouhikone-source/JPSupport/issues');
     AllOK := False;
   end;
 
