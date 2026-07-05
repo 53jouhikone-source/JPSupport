@@ -78,7 +78,13 @@ Launch Lazarus first, then run the following from a terminal:
 ~/Projects/JPSupport/tools/JPSupportCheck
 ```
 
-It automatically checks items ① through ⑤ and displays hints if any problems are found.
+It automatically checks the following items and displays hints if any problems are found.
+
+- Environment variables (GTK_IM_MODULE, XMODIFIERS)
+- GTK2 IM module availability
+- IM server (Fcitx5/IBus) status
+- JPSupport installation status
+- Actual Japanese input test
 
 ## Known Limitations
 
