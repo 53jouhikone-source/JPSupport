@@ -1,0 +1,106 @@
+# 真-JPSupport Qt5 検証環境（Docker / Ubuntu 24.04ベース）
+# Target: Raspberry Pi 4/5 (ARM64) host
+#
+# Debian 12ベースでの検証から分かったこと:
+#  - Debian版 lazarus-ide-qt5 は .lpk 一式が欠落しており、コンポーネント
+#    パレットが機能しない(既知の構造的欠陥)
+#  - Debian版 libqt5pas1(2.6系) は Lazarus 4.8系のQt5インターフェースを
+#    リンクできない(古すぎる)
+#  - Debian 12の fcitx5-frontend-qt5(5.0.16) は fcitx5本体(5.0.21)と
+#    世代がズレている。Ubuntu 24.04(noble)は両方5.1.x系で統一配布されている
+#
+# そのため、このDockerfileでは:
+#  1. Ubuntu 24.04を採用し、fcitx5関連はaptの統一バージョンをそのまま使う
+#  2. libQt5Pas は Lazarus同梱のcbindingsから自前ビルドする
+#     (Ubuntu提供のバージョンでもLazarus 4.8系とのリンクエラーが起き得るため)
+#  3. Lazarus本体(fixes_4ブランチ, Qt5ウィジェットセット)もソースから
+#     ビルド済みの状態でイメージに焼き込む
+#
+# ビルドには時間がかかりますが(体感、RasPi5で数分〜十数分)、
+# 一度イメージを作ってしまえば、コンテナを使い捨てても再ビルド不要です。
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=ja_JP.UTF-8 \
+    LANGUAGE=ja_JP:ja \
+    LC_ALL=ja_JP.UTF-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        build-essential \
+        gdb \
+        git \
+        python3 \
+        fpc \
+        fpc-source \
+        qtbase5-dev \
+        qt5-qmake \
+        qtchooser \
+        libqt5x11extras5-dev \
+        libqt5pas-dev \
+        libqt5pas1 \
+        fcitx5 \
+        fcitx5-frontend-qt5 \
+        fcitx5-frontend-gtk3 \
+        fonts-noto-cjk \
+        x11-apps \
+        dbus-x11 \
+        locales \
+        sudo \
+    && sed -i '/ja_JP.UTF-8/s/^# //' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- 非rootユーザー(ホストのUID/GIDに合わせてビルド時に指定) ---
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG USER_NAME=shortcut
+
+# Ubuntu 24.04公式イメージには既定でUID/GID 1000の"ubuntu"ユーザーが
+# 存在するため、指定UID/GIDと衝突する場合は先に削除しておく。
+RUN (getent passwd ${USER_UID} && userdel -r "$(getent passwd ${USER_UID} | cut -d: -f1)" || true) \
+    && (getent group ${USER_GID} && groupdel "$(getent group ${USER_GID} | cut -d: -f1)" || true) \
+    && groupadd -g ${USER_GID} ${USER_NAME} \
+    && useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash ${USER_NAME} \
+    && echo "${USER_NAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER ${USER_NAME}
+WORKDIR /home/${USER_NAME}
+
+# --- Lazarusソース取得(4.8系の安定版ブランチ) ---
+RUN git clone --branch fixes_4 https://gitlab.com/freepascal.org/lazarus/lazarus.git lazarus-src
+
+# --- JPSupport patches (Qt5 / SynEdit Japanese input support) ---
+# Applied here, right after clone and before any build step, so that the
+# patched state survives every container recreation (this Dockerfile RUN
+# step is what gets cached/baked into the image - unlike changes made by
+# hand inside a --rm container, which are lost the moment the container
+# is removed). See apply_jpsupport_patches.py for what each patch does:
+#   1. lcl/lmessages.pp: adds LM_IM_QUERY_CARET_POS message id
+#   2. components/synedit/synedit.pp: adds TCustomSynEdit.WMImeQueryCaretPos
+#   3. lcl/interfaces/qt5/qtwidgets.pas: commit-string truncation fix,
+#      preedit debug logging, and SlotInputMethodQuery (candidate window
+#      now follows the caret instead of being stuck at a fixed position).
+COPY patches/apply_jpsupport_patches.py /home/${USER_NAME}/apply_jpsupport_patches.py
+RUN python3 /home/${USER_NAME}/apply_jpsupport_patches.py qt5
+
+# --- libQt5Pas を同梱ソースから自前ビルド(バージョン相性問題の回避) ---
+RUN cd lazarus-src/lcl/interfaces/qt5/cbindings \
+    && qmake Qt5Pas.pro \
+    && make -j$(nproc) \
+    && sudo cp -P libQt5Pas.so* /usr/lib/aarch64-linux-gnu/ 2>/dev/null \
+    || sudo cp -P libQt5Pas.so* /usr/lib/x86_64-linux-gnu/ \
+    && sudo ldconfig
+
+# --- Lazarus本体をQt5ウィジェットセットでビルド ---
+# 注意: Lazarus本体のMakefileはユニット間の依存順序がシビアなため、
+# 並列ビルド(-j)を使うと依存関係の解決順が崩れてコンパイルエラーに
+# なることがある。ここは意図的にシングルスレッドでビルドする。
+RUN cd lazarus-src && make bigide LCL_PLATFORM=qt5
+
+# 起動用の設定ディレクトリ(初回はここに各種設定が作られます)
+ENV LAZARUS_PCP=/home/${USER_NAME}/.lazarus_qt5
+
+WORKDIR /home/${USER_NAME}/workspace
+CMD ["/bin/bash"]

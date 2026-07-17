@@ -86,9 +86,13 @@ It automatically checks the following items and displays hints if any problems a
 - JPSupport installation status
 - Actual Japanese input test
 
+## About the Qt5/Qt6 Version
+
+A sister project for the Qt5/Qt6 backends, [JPSupport-Qt](./JPSupport-Qt/), is also available. It takes a different approach (direct patches to LCL core and libQt5Pas/libQt6Pas) to bring the same kind of Japanese input support to SynEdit (accurate commit handling, cursor-following candidate windows, segment-highlighted preedit display, and more). If you use Lazarus with the Qt5 or Qt6 widgetset, please check it out.
+
 ## Known Limitations
 
-- GTK2 backend only (GTK3 and Qt versions not supported)
+- GTK2 backend only (GTK3 not supported; for Qt5/Qt6 see [JPSupport-Qt](./JPSupport-Qt/))
 - IBus and Fcitx5 confirmed working
 
 ## Note for Chinese and Korean Users

@@ -16,3 +16,7 @@ demo/*/*.o
 demo/*/*.ppu
 demo/*/project1
 docs/handover_claude.md
+
+# JPSupport-Qt (Docker検証環境のビルド生成物・作業ディレクトリ)
+JPSupport-Qt/workspace/
+JPSupport-Qt/workspace-qt6/
