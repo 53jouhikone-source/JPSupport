@@ -1,86 +1,124 @@
 # JPSupport-Qt
 
-Lazarus (FreePascal) の Qt5 / Qt6 ウィジェットセットで、SynEdit(Lazarus IDEのソースエディタコンポーネント)に日本語(および他のCJK言語)の入力メソッド(IME)対応を追加するパッチ集です。
+Patches that add Japanese (and other CJK language) input support to SynEdit, the source editor component of Lazarus (FreePascal), for the Qt5 and Qt6 widgetsets.
 
-[JPSupport](https://github.com/53jouhikone-source/JPSupport)(GTK2版)の姉妹プロジェクトです。GTK2版が`gtk_key_snooper_install`を用いた独立パッケージとして実装されているのに対し、本プロジェクトはQtの標準的な入力メソッドAPI(`QInputMethodEvent`/`QInputMethodQueryEvent`)を活用し、Lazarus/LCL本体への直接的なパッチという形で実装しています。
+A sister project to [JPSupport](https://github.com/53jouhikone-source/JPSupport) (the GTK2 version).
 
-## 背景
+## Why Qt5 and Qt6
 
-Lazarus公式のSynEditコンポーネントは、長年([Issue #13374](https://gitlab.com/freepascal.org/lazarus/lazarus/-/issues/13374)など)、GTK2/Carbon双方で日本語入力に対応できないという課題を抱えてきました。Qt5/Qt6についても同様で、`TEdit`/`TMemo`など一部のネイティブQtウィジェットは(Qt自身の標準機能により)日本語入力ができる一方、SynEditのようなLCLの自前描画コンポーネントは対応していませんでした。
+For a long time, Lazarus's primary widgetset (the underlying rendering toolkit) has been GTK2. But GTK2 development has ended, and its successor, GTK3, is clearly behind Qt5/Qt6 when it comes to input method support. Clinging to GTK2 is not good for the future of Lazarus itself.
 
-本プロジェクトは、Qt5/Qt6インターフェース層(`lcl/interfaces/qt5`, `qt6`)およびSynEditコンポーネント(`components/synedit`)に対するパッチ、加えてLazarus同梱の`libQt5Pas`/`libQt6Pas`バインディングライブラリへのC++拡張を通じて、この課題の解決を試みたものです。
+Having worked on the GTK2 version of JPSupport, we started this Qt5/Qt6 effort out of that same sense of urgency. This project is a first step in that direction. It's still rough around the edges in places (see below), but Qt's input method API is an officially supported mechanism with a much longer expected lifespan than the now-deprecated mechanism the GTK2 version relies on. Rather than aiming for "perfect right now," our goal is to bring Japanese input to Qt5/Qt6 Lazarus on par with (or better than) the GTK2 version, as a foundation we can keep improving.
 
-## 実現した機能
+## What's Implemented
 
-Fcitx5 + Mozc環境での動作を前提に、以下を実現しています。
+Tested and confirmed working with Fcitx5 + Mozc:
 
-- **確定処理の正確性**: 複数文字(CJK文字)の確定文字列が正しく反映される(UTF-16をUTF-8として誤読していたバグの修正)
-- **IME切り替えキー**: `Ctrl+Space`、`半角/全角`キーの両方が正常に機能する
-- **候補ウィンドウのカーソル追随**: 変換候補ウィンドウが、キャレット位置に正しく追随して表示される(固定位置に表示される問題の解消)
-- **プリエディット(変換中)表示**: 変換中の文字列が、専用のオーバーレイ描画により画面に表示される(何も表示されない問題の解消)
-- **文節区切り表示**: Fcitx5/Mozcが報告する文節(bunsetsu)の区切りを認識し、現在編集中の文節を水色文字+太字下線でハイライト表示する
-- **文節内カーソル追随**: `←`/`→`、`Shift+←`/`→`による文節移動・区切り調整に、表示上のカーソルが正しく追随する
+- **Accurate commit handling**: multi-character conversion results are correctly reflected (previously, some characters could be dropped)
+- **IME toggle keys**: both `Ctrl+Space` and `Zenkaku-Hankaku` work correctly
+- **Cursor-following candidate window**: the conversion candidate list appears right next to where you're typing (previously it was stuck at a fixed position)
+- **Preedit (composing) text display**: the text you're currently converting is actually shown on screen (previously nothing was shown at all)
+- **Segment (bunsetsu) highlighting**: the segment you're currently editing is clearly shown in cyan text with a bold underline
+- **Cursor tracking during segment navigation**: moving between segments with `Left`/`Right` and `Shift+Left`/`Right` correctly moves this highlight along with it
 
-一般的なGTKネイティブアプリ(Geditなど)と比較しても遜色ない表示品質を確認しています。
+We've confirmed the display quality holds up well against common Linux apps such as Gedit.
 
-## 対応ブランチ・バージョン
+## Getting Started
 
-- Lazarus: `fixes_4`ブランチ(4.8/4.9系)を対象に開発・検証
-- ウィジェットセット: Qt5、Qt6の両方に対応(同一のパッチ構造をそれぞれのインターフェース層に適用)
-- 入力メソッド: Fcitx5 + Mozcで動作確認(他のIMEでの動作は未検証)
-- 検証環境: Ubuntu 24.04 (Docker/ARM64、Raspberry Pi 4/5上)
+Two options are available.
 
-## 導入方法
+### Option 1: Try it with Docker (if you just want to take a look)
 
-2通りの方法を用意しています。
-
-### 方法1: Dockerで試す(検証・お試し向け)
-
-ビルド済み環境をすぐに試せます。実機のLazarus環境には影響しません。
+Launch a pre-built environment without touching your existing Lazarus setup at all. If you're not very comfortable with the command line, we'd recommend starting here to get a feel for it.
 
 ```bash
 cd docker
-./run-jpsupport-qt5-ubuntu.sh   # Qt5版
-# または
-./run-jpsupport-qt6-ubuntu.sh   # Qt6版
+./run-jpsupport-qt5-ubuntu.sh   # Try the Qt5 version
+# or
+./run-jpsupport-qt6-ubuntu.sh   # Try the Qt6 version
 ```
 
-初回はDockerイメージのビルド(Lazarus本体のソースビルドを含む)が走るため、数分〜数十分かかります。以降はキャッシュにより高速に起動します。
+The first run takes a while (building Lazarus itself, among other things) - anywhere from a few minutes to tens of minutes depending on your hardware. Subsequent runs start quickly thanks to caching.
 
-### 方法2: 自分のLazarus環境にパッチを当てる(実機導入向け)
+### Option 2: Install it into your own Lazarus setup (if you want to actually use it)
 
-`fixes_4`ブランチのLazarusソースツリーに対して、パッチスクリプトを直接適用します。
+**To be upfront about it: unlike the "just install a package" simplicity of the GTK2 version of JPSupport, this requires rebuilding Lazarus itself from source.** This path is for people who are reasonably comfortable with development tools and have some time to spare. If you just want to try it quickly, Option 1 above is the way to go.
+
+For those who still want to give it a shot, here are honest, hands-on-tested instructions and caveats.
+
+#### Before you start
+
+- **You'll be building a new, separate copy of Lazarus from source, alongside your existing installation** - not overwriting it
+- **You'll need a full set of development tools installed.** On Debian/Ubuntu-based systems these come from `apt`, but expect a fair amount of disk space and build time (tens of minutes on a Raspberry Pi is typical)
+- **You'll need to overwrite a system library that Qt uses for its display features.** This normally doesn't affect your existing setup, but it's not the tidiest thing to do from a package-management standpoint. If you're cautious, back things up first
+- **Watch out for a configuration conflict.** On first launch, Lazarus may warn you that its configuration conflicts with an existing installation. **Do not choose "update" or "use as-is" at that point** - doing so risks corrupting your existing Lazarus installation's configuration. See the steps below for the safe way to handle this
+
+#### Steps
+
+1. Install the necessary tools (Qt development packages, Japanese input-related packages, etc.). See `docker/Dockerfile.ubuntu` (Qt5) or `docker/Dockerfile.qt6.ubuntu` (Qt6) for the specific package names
+
+2. Get a fresh copy of the Lazarus source, in a new location
 
 ```bash
-# Lazarusソースのルートディレクトリで実行
-python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py [qt5|qt6|both]
+   git clone --branch fixes_4 https://gitlab.com/freepascal.org/lazarus/lazarus.git lazarus-src
 ```
 
-引数で対象ウィジェットセットを指定できます(省略時は`both`、両方に適用)。
+3. Move into that folder and apply the patches (specify `qt5`, `qt6`, or both)
 
-適用後、以下の手順でビルドしてください。
+```bash
+   cd lazarus-src
+   python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py qt5
+```
 
-1. `libQt5Pas`(または`libQt6Pas`)を`lcl/interfaces/qt5/cbindings`(または`qt6/cbindings`)で再ビルドし、システムにインストール
-2. `make bigide LCL_PLATFORM=qt5`(または`qt6`)でLazarus本体をビルド
+4. Rebuild the Qt binding library (example for Qt5)
 
-詳細な手順は`docker/Dockerfile.ubuntu`(または`Dockerfile.qt6.ubuntu`)内のコメント、および実際のビルドステップを参照してください。
+```bash
+   cd lcl/interfaces/qt5/cbindings
+   qmake Qt5Pas.pro
+   make
+   sudo cp -P libQt5Pas.so* /usr/lib/aarch64-linux-gnu/   # path varies by system
+   sudo ldconfig
+```
 
-## 技術的な補足
+5. Build Lazarus itself (this step takes a while)
 
-- **なぜ`libQt5Pas`/`libQt6Pas`にC++拡張が必要だったか**: Qtの`QInputMethodEvent::attributes()`(文節区切り・カーソル位置などの情報)が、Lazarus同梱のバインディングライブラリに一切公開されていなかったため、C++側に直接アクセサ関数を追加しました
-- **なぜプリエディット文字列をバッファに挿入しないか**: テキストバッファを汚さず、Undo履歴やシンタックスハイライトへの副作用を避けるため、`TPaintBox`によるオーバーレイ描画方式を採用しています
-- **`SlotInputMethodQuery`の`Result`について**: `QEvent::InputMethodQuery`は複数の情報を同時に問い合わせるため、一部の問い合わせにしか答えられない場合でも`Result`を無条件に`True`にしてはいけません(Qt自身の他の処理、特に`Qt::ImEnabled`の判定を妨げ、IME自体が起動しなくなります)。詳細はソースコード中のコメントを参照してください
+```bash
+   cd ../../../..
+   make bigide LCL_PLATFORM=qt5
+```
 
-## 既知の制限・未検証事項
+6. **Launch it with a dedicated config path, so it doesn't clash with your existing setup. This is the single most important step.**
 
-- Fcitx5 + Mozc以外の入力メソッド(ibus等)での動作は未検証です
-- Qt5/Qt6以外のウィジェットセット(GTK3等)への対応は含まれません(GTK2版は[JPSupport](https://github.com/53jouhikone-source/JPSupport)を参照してください)
-- ルビ(Ruby)属性、周辺テキスト(Surrounding Text)関連の機能には対応していません
+```bash
+   ./lazarus --pcp=~/.lazarus_jpsupport_qt5
+```
 
-## 今後の展望
+   If you launch without `--pcp` and see a warning about a conflicting configuration, choose "Abort". Proceeding could overwrite your existing Lazarus installation's settings.
 
-本プロジェクトの内容は、Lazarus公式へのアップストリーム提案(バグ報告・マージリクエスト)を見据えた検証・叩き台という位置づけでもあります。将来的に本家に取り込まれることが、最も望ましい解決だと考えています。
+From then on, always launch with this `--pcp` option, and you'll have a Japanese-input-capable installation that lives entirely independently of your existing Lazarus setup.
 
-## ライセンス
+## Technical Notes (for developers)
 
-[JPSupport](https://github.com/53jouhikone-source/JPSupport)本体と同じくMITライセンスです。詳細はリポジトリルートの`LICENSE`を参照してください。
+- Lazarus: developed and tested against the `fixes_4` branch (the 4.8/4.9 series, the latest stable line as of this writing)
+- Widgetset: both Qt5 and Qt6 are supported
+- Input method: tested with Fcitx5 + Mozc (other IMEs untested)
+- Test environments: Ubuntu 24.04 (Docker/ARM64, on Raspberry Pi 4/5), and Debian 12 (bare-metal Raspberry Pi 4, verified via the direct-build "Option 2" path)
+
+- **Why C++ extensions to `libQt5Pas`/`libQt6Pas` were needed**: `QInputMethodEvent::attributes()` (segment/bunsetsu boundaries, cursor position, etc.) was not exposed by Lazarus's bundled bindings at all, so we added accessor functions directly on the C++ side
+- **Why the preedit string is never inserted into the text buffer**: to avoid polluting undo history and triggering unnecessary syntax-highlighting recalculation, we use a `TPaintBox` overlay for rendering instead
+- **About `SlotInputMethodQuery`'s `Result`**: `QEvent::InputMethodQuery` can ask about several things at once, so `Result` must not be set to `True` unconditionally just because we answered one of them - doing so suppresses Qt's own handling of the others (notably `Qt::ImEnabled`), breaking IME activation entirely. See the in-code comments for details
+
+## Known Limitations / Untested
+
+- Input methods other than Fcitx5 + Mozc (e.g. ibus) are untested
+- Widgetsets other than Qt5/Qt6 (e.g. GTK3) are not covered (see [JPSupport](https://github.com/53jouhikone-source/JPSupport) for GTK2)
+- Ruby and Surrounding-Text attributes are not handled
+- The "Option 2" installation process is not yet polished (packaging/an installer is a future goal)
+
+## Future Direction
+
+This project also serves as a working proof-of-concept toward an upstream contribution to Lazarus itself (a bug report / merge request). We believe the best outcome would be for this to eventually be merged upstream, so that anyone using Qt5/Qt6 Lazarus gets this out of the box, with no extra steps required.
+
+## License
+
+MIT License, same as the main [JPSupport](https://github.com/53jouhikone-source/JPSupport) project. See `LICENSE` at the repository root.

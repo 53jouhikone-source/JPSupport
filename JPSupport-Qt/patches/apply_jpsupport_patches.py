@@ -38,7 +38,13 @@ be built with make bigide LCL_PLATFORM=qt5.
 """
 import sys
 
-LAZARUS_SRC = "/home/shortcut/lazarus-src"
+import os as _os
+# JPSupport-Qt: the Lazarus source tree to patch. Defaults to the current
+# working directory (so "cd /path/to/your/lazarus-src && python3
+# apply_jpsupport_patches.py" just works), but can be overridden via the
+# LAZARUS_SRC_PATH environment variable if you'd rather run this script
+# from elsewhere.
+LAZARUS_SRC = _os.environ.get("LAZARUS_SRC_PATH", _os.getcwd())
 
 
 def patch_lmessages():
