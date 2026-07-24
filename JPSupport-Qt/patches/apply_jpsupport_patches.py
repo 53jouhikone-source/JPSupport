@@ -543,6 +543,9 @@ var
   PreeditMsg: TLMessage;
   PreeditInfo: TIMEPreeditInfo;
   AttrCount, AttrIdx: Integer;
+  SegAttrStart, SegAttrLength: Integer;
+  SegAttrFocused, SegAttrBold: Boolean;
+  SegFoundIdx, SegExistingIdx: Integer;
 begin
   Result := True;
   if not (QEvent_type(Event) = QEventInputMethod) then Exit;
@@ -592,14 +595,42 @@ begin
         end;
         if QInputMethodEvent_attributeType(InputEvent, AttrIdx) <> Ord(QInputMethodEventTextFormat) then
           Continue;
+        SegAttrStart := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
+        SegAttrLength := QInputMethodEvent_attributeLength(InputEvent, AttrIdx);
+        SegAttrFocused := QInputMethodEvent_attributeBackgroundColor(InputEvent, AttrIdx) <> -1;
+        SegAttrBold := QInputMethodEvent_attributeBold(InputEvent, AttrIdx) = 1;
+        // JPSupport: some IMEs (observed with IBus + Mozc) send more than
+        // one TextFormat attribute for the exact same [Start,Length) range
+        // - e.g. one carrying the background/highlight and another
+        // carrying just the bold flag - rather than a single merged
+        // attribute the way Fcitx5/Mozc does. Treating each attribute as
+        // its own segment then draws that same span multiple times, side
+        // by side (a "same text repeated" glitch, e.g. "kanji henkankanji
+        // henkan" for a single word). So: if a segment with this exact
+        // range already exists, merge the new attribute's flags into it
+        // (OR'd - true wins) instead of appending a duplicate segment.
+        SegFoundIdx := -1;
+        for SegExistingIdx := 0 to PreeditInfo.SegmentCount - 1 do
+        begin
+          if (PreeditInfo.Segments[SegExistingIdx].Start = SegAttrStart) and
+             (PreeditInfo.Segments[SegExistingIdx].Length = SegAttrLength) then
+          begin
+            SegFoundIdx := SegExistingIdx;
+            Break;
+          end;
+        end;
+        if SegFoundIdx >= 0 then
+        begin
+          PreeditInfo.Segments[SegFoundIdx].Focused := PreeditInfo.Segments[SegFoundIdx].Focused or SegAttrFocused;
+          PreeditInfo.Segments[SegFoundIdx].Bold := PreeditInfo.Segments[SegFoundIdx].Bold or SegAttrBold;
+          Continue;
+        end;
         if PreeditInfo.SegmentCount > High(PreeditInfo.Segments) then
           Break;
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Start := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Length := QInputMethodEvent_attributeLength(InputEvent, AttrIdx);
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Focused :=
-          QInputMethodEvent_attributeBackgroundColor(InputEvent, AttrIdx) <> -1;
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Bold :=
-          QInputMethodEvent_attributeBold(InputEvent, AttrIdx) = 1;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Start := SegAttrStart;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Length := SegAttrLength;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Focused := SegAttrFocused;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Bold := SegAttrBold;
         Inc(PreeditInfo.SegmentCount);
       end;
       FillChar(PreeditMsg, SizeOf(PreeditMsg), 0);
@@ -945,6 +976,9 @@ var
   PreeditMsg: TLMessage;
   PreeditInfo: TIMEPreeditInfo;
   AttrCount, AttrIdx: Integer;
+  SegAttrStart, SegAttrLength: Integer;
+  SegAttrFocused, SegAttrBold: Boolean;
+  SegFoundIdx, SegExistingIdx: Integer;
 begin
   Result := True;
   if not (QEvent_type(Event) = QEventInputMethod) then Exit;
@@ -989,14 +1023,42 @@ begin
         end;
         if QInputMethodEvent_attributeType(InputEvent, AttrIdx) <> Ord(QInputMethodEventTextFormat) then
           Continue;
+        SegAttrStart := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
+        SegAttrLength := QInputMethodEvent_attributeLength(InputEvent, AttrIdx);
+        SegAttrFocused := QInputMethodEvent_attributeBackgroundColor(InputEvent, AttrIdx) <> -1;
+        SegAttrBold := QInputMethodEvent_attributeBold(InputEvent, AttrIdx) = 1;
+        // JPSupport: some IMEs (observed with IBus + Mozc) send more than
+        // one TextFormat attribute for the exact same [Start,Length) range
+        // - e.g. one carrying the background/highlight and another
+        // carrying just the bold flag - rather than a single merged
+        // attribute the way Fcitx5/Mozc does. Treating each attribute as
+        // its own segment then draws that same span multiple times, side
+        // by side (a "same text repeated" glitch, e.g. "kanji henkankanji
+        // henkan" for a single word). So: if a segment with this exact
+        // range already exists, merge the new attribute's flags into it
+        // (OR'd - true wins) instead of appending a duplicate segment.
+        SegFoundIdx := -1;
+        for SegExistingIdx := 0 to PreeditInfo.SegmentCount - 1 do
+        begin
+          if (PreeditInfo.Segments[SegExistingIdx].Start = SegAttrStart) and
+             (PreeditInfo.Segments[SegExistingIdx].Length = SegAttrLength) then
+          begin
+            SegFoundIdx := SegExistingIdx;
+            Break;
+          end;
+        end;
+        if SegFoundIdx >= 0 then
+        begin
+          PreeditInfo.Segments[SegFoundIdx].Focused := PreeditInfo.Segments[SegFoundIdx].Focused or SegAttrFocused;
+          PreeditInfo.Segments[SegFoundIdx].Bold := PreeditInfo.Segments[SegFoundIdx].Bold or SegAttrBold;
+          Continue;
+        end;
         if PreeditInfo.SegmentCount > High(PreeditInfo.Segments) then
           Break;
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Start := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Length := QInputMethodEvent_attributeLength(InputEvent, AttrIdx);
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Focused :=
-          QInputMethodEvent_attributeBackgroundColor(InputEvent, AttrIdx) <> -1;
-        PreeditInfo.Segments[PreeditInfo.SegmentCount].Bold :=
-          QInputMethodEvent_attributeBold(InputEvent, AttrIdx) = 1;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Start := SegAttrStart;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Length := SegAttrLength;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Focused := SegAttrFocused;
+        PreeditInfo.Segments[PreeditInfo.SegmentCount].Bold := SegAttrBold;
         Inc(PreeditInfo.SegmentCount);
       end;
       FillChar(PreeditMsg, SizeOf(PreeditMsg), 0);
