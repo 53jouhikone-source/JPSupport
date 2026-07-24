@@ -7,20 +7,28 @@
 3. 文節移動（`←→`、`Shift+←→`）
 4. 変換対象文節の水色文字＋水色太線下線表示
 
-## 検証マトリクス
+## 検証マトリックス
 
 | 環境 | 方式 | IME | 4点セット | 確認日 | 備考 |
 |---|---|---|---|---|---|
 | RasPi5 | Docker(Ubuntu24.04) | Qt5 + Fcitx5+Mozc | ✅ | 2026-07-16 | 開発時の検証環境 |
 | RasPi5 | Docker(Ubuntu24.04) | Qt6 + Fcitx5+Mozc | ✅ | 2026-07-17 | Qt5からの横展開で成功 |
 | RasPi4 | 実機(Debian12) | Qt5 + Fcitx5+Mozc | ✅ | 2026-07-18 | `--pcp`分離必須(既存Lazarus 2.2.6と設定衝突) |
-| RasPi4 | 実機(Debian12) | Qt5 + IBus+Mozc | 未検証 | | |
+| RasPi4 | 実機(Debian12) | Qt5 + IBus+Mozc | 一部✅ | 2026-07-20 | 下記「IBus環境での既知の制限」参照 |
 | RasPi4 | 実機(Debian12) | Qt6 + いずれか | 未検証 | | |
-| VMware(x86_64) | 実機(Ubuntu) | Qt5 + Fcitx5+Mozc | 未検証 | | |
-| VMware(x86_64) | 実機(Ubuntu) | Qt5 + IBus+Mozc | 未検証 | | |
-| VMware(x86_64) | 実機(Ubuntu) | Qt6 + いずれか | 未検証 | | |
+| VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt5 + Fcitx5+Mozc | 未検証 | | |
+| VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt5 + IBus+Mozc | 一部✅ | 2026-07-24 | 重複セグメントバグを発見・修正(コミット8c664d8) |
+| VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt6 + いずれか | 未検証 | | |
+
+## IBus環境での既知の制限
+
+複数の環境(RasPi4/Debian12、VMware x86_64/Ubuntu22.04)での検証を通じ、IBus + Mozcの組み合わせに、Fcitx5にはない、以下の制限があることを確認しました。
+
+1. **`Ctrl+Space`が効かない**：Lazarus IDE自体が、`Ctrl+Space`を「コード補完」のデフォルトショートカットとしてハードコードしているため(`components/synedit/syncompletion.pas`)、IBusのトリガーキーとして機能しません。**`半角/全角`キーは影響を受けず、正常に動作します。** これはJPSupport-QtやIBus自体の不具合ではなく、Lazarus IDEのキーバインド設定に起因するものです。
+2. **候補ウィンドウが画面左上に固定される**：`SlotInputMethodQuery`は正しく呼ばれ、正しい座標をQtに返していることをログで確認済みですが、それでも候補ウィンドウの位置には反映されません。これはIBus自身のQt統合(`QIBusPlatformInputContext`)側の制約と考えられ、JPSupport-Qt側での修正は困難です。
+3. **プリエディット文字列の重複表示**(2026-07-24修正済み)：IBus + Mozcは、同一の文字範囲に対して複数の`TextFormat`属性を個別に送ってくることがあり、これを単純にセグメントとして積み上げると、変換中の文字列が重複して表示される不具合がありました。同一範囲のセグメントをマージする処理を追加し、修正済みです。
 
 ## 今後の検証方針
 
 - Qt6はコード差分がQt5とほぼ皆無であることを確認済みのため、代表的な1環境で成功を確認できれば、他環境への横展開は基本的に問題ないと判断する
-- IBusでの動作確認では、`QT_IM_MODULE=ibus`への切り替えに加え、Qt用IBusプラグインの要否を事前に確認する
+- 「4点セット」のうち、Fcitx5環境では全項目が確認できているが、IBus環境では上記の制限により、`Ctrl+Space`と候補ウィンドウ追随の2項目が構造的に満たせない。これは今後もIBus利用時の既知の制限として案内する

@@ -109,7 +109,9 @@ cd docker
 
 ## 既知の制限・未検証事項
 
-- Fcitx5 + Mozc以外の入力メソッド(ibus等)での動作は未検証です
+- IBus + Mozcでも動作確認していますが、Fcitx5 + Mozcに比べて以下の制限があります(詳細は`docs/verification-matrix.md`を参照)
+  - `Ctrl+Space`が効きません(Lazarus IDE自体がこのキーをコード補完のショートカットとして使っているためです。`半角/全角`キーは問題なく使えます)
+  - 変換候補ウィンドウが画面左上に固定され、カーソル位置には追随しません(IBus自体のQt統合の制約と考えられます)
 - Qt5/Qt6以外のウィジェットセット(GTK3等)への対応は含まれません(GTK2版は[JPSupport](https://github.com/53jouhikone-source/JPSupport)を参照してください)
 - ルビ(Ruby)属性、周辺テキスト(Surrounding Text)関連の機能には対応していません
 - 「方法2」の導入手順は、まだ十分に洗練されていません(パッケージ化やインストーラー化は今後の課題です)

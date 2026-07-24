@@ -110,7 +110,9 @@ From then on, always launch with this `--pcp` option, and you'll have a Japanese
 
 ## Known Limitations / Untested
 
-- Input methods other than Fcitx5 + Mozc (e.g. ibus) are untested
+- IBus + Mozc has also been tested and works, but with some limitations compared to Fcitx5 + Mozc (see `docs/verification-matrix.md` for details)
+  - `Ctrl+Space` does not work (Lazarus IDE itself hardcodes this key combination as its Code Completion shortcut. `Zenkaku-Hankaku` is unaffected and works fine)
+  - The candidate window stays fixed at the top-left of the screen and does not follow the cursor (this appears to be a limitation in IBus's own Qt integration)
 - Widgetsets other than Qt5/Qt6 (e.g. GTK3) are not covered (see [JPSupport](https://github.com/53jouhikone-source/JPSupport) for GTK2)
 - Ruby and Surrounding-Text attributes are not handled
 - The "Option 2" installation process is not yet polished (packaging/an installer is a future goal)
