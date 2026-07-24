@@ -16,7 +16,7 @@
 | RasPi4 | 実機(Debian12) | Qt5 + Fcitx5+Mozc | ✅ | 2026-07-18 | `--pcp`分離必須(既存Lazarus 2.2.6と設定衝突) |
 | RasPi4 | 実機(Debian12) | Qt5 + IBus+Mozc | 一部✅ | 2026-07-20 | 下記「IBus環境での既知の制限」参照 |
 | RasPi4 | 実機(Debian12) | Qt6 + いずれか | 未検証 | | |
-| VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt5 + Fcitx5+Mozc | 未検証 | | |
+| VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt5 + Fcitx5+Mozc | ✅ | 2026-07-25 | フル達成、他環境(RasPi4/5)と一貫した結果 |
 | VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt5 + IBus+Mozc | 一部✅ | 2026-07-24 | 重複セグメントバグを発見・修正(コミット8c664d8) |
 | VMware(x86_64) | 実機(Ubuntu22.04/XFCE) | Qt6 + いずれか | 未検証 | | |
 
