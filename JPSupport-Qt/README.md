@@ -57,37 +57,15 @@ For those who still want to give it a shot, here are honest, hands-on-tested ins
 
 1. Install the necessary tools (Qt development packages, Japanese input-related packages, etc.). See `docker/Dockerfile.ubuntu` (Qt5) or `docker/Dockerfile.qt6.ubuntu` (Qt6) for the specific package names
 
-2. Get a fresh copy of the Lazarus source, in a new location
+2. Run `patches/build_jpsupport_qt.sh`. It automates the whole flow - fetching the source, applying patches, rebuilding the Qt binding library, and building Lazarus itself (choose `qt5`, `qt6`, or `both`)
 
 ```bash
-   git clone --branch fixes_4 https://gitlab.com/freepascal.org/lazarus/lazarus.git lazarus-src
+./patches/build_jpsupport_qt.sh qt5
 ```
 
-3. Move into that folder and apply the patches (specify `qt5`, `qt6`, or both)
+This can take anywhere from several minutes to tens of minutes depending on your hardware. When it's done, it prints the exact command you need to launch it with
 
-```bash
-   cd lazarus-src
-   python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py qt5
-```
-
-4. Rebuild the Qt binding library (example for Qt5)
-
-```bash
-   cd lcl/interfaces/qt5/cbindings
-   qmake Qt5Pas.pro
-   make
-   sudo cp -P libQt5Pas.so* /usr/lib/aarch64-linux-gnu/   # path varies by system
-   sudo ldconfig
-```
-
-5. Build Lazarus itself (this step takes a while)
-
-```bash
-   cd ../../../..
-   make bigide LCL_PLATFORM=qt5
-```
-
-6. **Launch it with a dedicated config path, so it doesn't clash with your existing setup. This is the single most important step.**
+3. **Launch it with a dedicated config path, so it doesn't clash with your existing setup. This is the single most important step** (the script's output also shows you this command)
 
 ```bash
    ./lazarus --pcp=~/.lazarus_jpsupport_qt5

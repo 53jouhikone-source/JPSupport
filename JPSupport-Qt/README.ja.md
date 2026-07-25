@@ -56,37 +56,15 @@ cd docker
 #### 手順
 
 1. 必要なツール一式をインストールします(Qtの開発環境、日本語入力関連のパッケージなど)。具体的なパッケージ名は`docker/Dockerfile.ubuntu`(Qt5版)、`docker/Dockerfile.qt6.ubuntu`(Qt6版)の該当箇所を参照してください
-2. 新しい場所にLazarusのソースコード一式を取得します
+2. `patches/build_jpsupport_qt.sh`スクリプトを実行します。ソース取得・パッチ適用・ライブラリの再構築・Lazarus本体のビルドまで、一連の作業をまとめて行います(`qt5`・`qt6`・`both`から対象を選べます)
 
 ```bash
-   git clone --branch fixes_4 https://gitlab.com/freepascal.org/lazarus/lazarus.git lazarus-src
+./patches/build_jpsupport_qt.sh qt5
 ```
 
-3. 取得したフォルダに移動し、パッチを適用します(`qt5`、`qt6`、または両方を指定できます)
+完了まで、環境によっては数十分程度かかります。完了すると、次に起動すべきコマンドが画面に表示されます
 
-```bash
-   cd lazarus-src
-   python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py qt5
-```
-
-4. 画面表示の部品(ライブラリ)を組み込み直します(Qt5の場合の例)
-
-```bash
-   cd lcl/interfaces/qt5/cbindings
-   qmake Qt5Pas.pro
-   make
-   sudo cp -P libQt5Pas.so* /usr/lib/aarch64-linux-gnu/   # 環境により配置場所は異なります
-   sudo ldconfig
-```
-
-5. Lazarus本体をビルドします(この作業は時間がかかります)
-
-```bash
-   cd ../../../..
-   make bigide LCL_PLATFORM=qt5
-```
-
-6. **既存の設定と衝突しないよう、専用の設定場所を指定して起動します。** ここが一番重要なポイントです
+3. **既存の設定と衝突しないよう、専用の設定場所を指定して起動します。** ここが一番重要なポイントです(スクリプトの実行結果にも、このコマンドが表示されます)
 
 ```bash
    ./lazarus --pcp=~/.lazarus_jpsupport_qt5
