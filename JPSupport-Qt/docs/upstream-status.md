@@ -56,3 +56,28 @@ JPSupport-Qtの内容を、Lazarus公式(fpc-lazarus本体)に取り込んでも
 - Fcitx5+Mozc、IBus+Mozc双方で動作確認済みであること(IBusには既知の制限あり)
 - パッチスクリプト・Docker環境の両方を用意していること
 - 本家取り込みの是非、および次のステップ(Issue/MR等)について意見を求めた
+
+## 2026-07-30: LazSynImeサブクラス方式へのリファクタリング完了
+
+Martin_fr氏の提案を受け、Qt5/Qt6のIME実装を`TCustomSynEdit`への直接実装から
+`LazSynIme`サブクラス(`LazSynImeQt`、新規ユニット`lazsynqtimm.pas`)方式へ
+作り直した。既存の`LazSynImeGtk2`など他プラットフォームのハンドラと同じ設計に揃えている。
+
+- `LazSynIme`(lazsynimmbase.pas): `WMImeQueryCaretPos` / `WMImeSetPreedit`を
+  仮想メソッドとして追加(デフォルトは空実装、他プラットフォームへの影響なし)
+- `LazSynImeQt`(lazsynqtimm.pas、新規): 従来`TCustomSynEdit`に直接実装していた
+  プリエディット描画ロジック(文節ハイライト、カーソル追跡含む)をすべて移動
+- `synedit.pp`: `FImeHandler`への薄い転送のみに整理。新規`QtIME`定義
+  (LCLQt5/LCLQt6双方で有効)でインスタンス生成を制御
+
+クリーンなLazarusチェックアウト(x86_64/Ubuntu22.04、Qt5、Fcitx5+Mozc)でビルド・
+動作確認済み。既存の検証済み機能(確定処理、変換キー2種、候補ウィンドウ追随、
+プリエディット表示、文節ハイライト、文節移動)がすべて正常に動作することを確認。
+
+`patches/apply_jpsupport_patches.py`もこの設計に追従済み(commit 87b1ddd)。
+`git worktree`でクリーンなチェックアウトに適用し、手動検証済みの状態とdiffで
+突き合わせて確認 — コメント文言のみの差分で、機能面の相違なし。
+
+フォーラムスレッド(topic 74458)へ改訂版の報告を投稿済み。Qt6でのビルド・
+動作確認は未着手。zeljko氏からの`libQt5Pas`/`libQt6Pas`へのC++バインディング
+拡張に関する懸念への回答はまだ届いていない。
