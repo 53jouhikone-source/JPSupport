@@ -108,57 +108,82 @@ const
 
 
 def patch_synedit():
+    # JPSupport: SynEdit is kept a thin forwarder of these two new
+    # LM_IM_* messages to the LazSynIme handler class (LazSynImeQt, added
+    # by patch_lazsynimmbase()/patch_lazsynqtimm()), matching the design
+    # of the existing WMImeComposition etc. forwarders and the feedback
+    # received from Martin_fr (SynEdit maintainer) on the Lazarus forum.
     path = f"{LAZARUS_SRC}/components/synedit/synedit.pp"
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    old_ime_define = """  {$DEFINE CocoaIME}
+{$ENDIF}"""
+    new_ime_define = """  {$DEFINE CocoaIME}
+{$ENDIF}
+
+// JPSupport (Qt5/Qt6): unlike GTK2 (whose Gtk2IME define was never
+// wired up here at all - a known, long-standing gap), Qt5 and Qt6
+// share an (almost) identical qtwidgets.pas implementation, so a
+// single LazSynImeQt handler class serves both widgetsets.
+{$IFDEF LCLQt5}
+  {$DEFINE QtIME}
+{$ENDIF}
+{$IFDEF LCLQt6}
+  {$DEFINE QtIME}
+{$ENDIF}"""
+    if content.count(old_ime_define) != 1:
+        print("ERROR (synedit.pp): CocoaIME define anchor not found exactly once.")
+        sys.exit(1)
+    content = content.replace(old_ime_define, new_ime_define, 1)
+
+    old_uses = """  {$IFDEF Gtk2IME}
+  LazSynGtk2IMM,
+  {$ENDIF}
+  {$IFDEF USE_UTF8BIDI_LCL}"""
+    new_uses = """  {$IFDEF Gtk2IME}
+  LazSynGtk2IMM,
+  {$ENDIF}
+  {$IFDEF QtIME}
+  LazSynQtIMM,
+  {$ENDIF}
+  {$IFDEF USE_UTF8BIDI_LCL}"""
+    if content.count(old_uses) != 1:
+        print("ERROR (synedit.pp): uses-clause anchor not found exactly once.")
+        sys.exit(1)
+    content = content.replace(old_uses, new_uses, 1)
 
     old_decl = """    function CaretXPix: Integer; override;
     function CaretYPix: Integer; override;"""
     new_decl = """    function CaretXPix: Integer; override;
     function CaretYPix: Integer; override;
-    // JPSupport (Qt5): answers a caret/cursor-rectangle query sent by
-    // TQtWidget.SlotInputMethodQuery (lcl/interfaces/qt5/qtwidgets.pas).
-    // TQtWidget is a generic LCL-layer class that must not depend on the
-    // SynEdit package, so it cannot cast LCLObject to TCustomSynEdit and
-    // read CaretXPix/CaretYPix directly; instead it dispatches this
-    // message to whatever control has focus, and this handler (present
-    // only on TCustomSynEdit) fills in the TRect passed via Message.LParam.
+    // JPSupport (Qt5/Qt6): thin forwarders to the LazSynIme handler class
+    // (LazSynImeQt), matching the existing pattern for WMImeComposition
+    // etc. on other platforms (e.g. GTK2's GTK_IMComposition). See
+    // lazsynqtimm.pas for the actual implementation.
     procedure WMImeQueryCaretPos(var Message: TMessage); message LM_IM_QUERY_CARET_POS;
-    // JPSupport (Qt5): receives the current IME preedit (composition,
-    // with bunsetsu/segment and cursor info) from TQtWidget.SlotInputMethod,
-    // so this control can render it itself (see LM_IM_SET_PREEDIT comment
-    // in lmessages.pp for why this is necessary for a custom-painted
-    // control like TSynEdit).
     procedure WMImeSetPreedit(var Message: TMessage); message LM_IM_SET_PREEDIT;"""
     if content.count(old_decl) != 1:
         print("ERROR (synedit.pp): CaretXPix/CaretYPix declaration anchor not found exactly once.")
         sys.exit(1)
     content = content.replace(old_decl, new_decl, 1)
 
-    old_priv_anchor = """  private
-    procedure SetImeHandler(AValue: LazSynIme);
-  protected
-    // SynEdit takes ownership
-    property ImeHandler: LazSynIme read FImeHandler write SetImeHandler;"""
-    new_priv_anchor = """  private
-    // JPSupport (Qt5): overlay box used to render the IME preedit
-    // (composition-in-progress) string, with bunsetsu/segment highlight
-    // and a cursor-tracking line, on top of the editor - since TSynEdit
-    // is custom-painted and never receives Qt's native preedit rendering
-    // (see LM_IM_SET_PREEDIT in lmessages.pp). Created lazily on first
-    // use; never destroyed except with the editor itself.
-    FJPSupportPreeditBox: TPaintBox;
-    FJPSupportPreeditInfo: TIMEPreeditInfo;
-    procedure JPSupportEnsurePreeditBox;
-    procedure JPSupportPreeditBoxPaint(Sender: TObject);
-    procedure SetImeHandler(AValue: LazSynIme);
-  protected
-    // SynEdit takes ownership
-    property ImeHandler: LazSynIme read FImeHandler write SetImeHandler;"""
-    if content.count(old_priv_anchor) != 1:
-        print("ERROR (synedit.pp): private-section anchor not found exactly once.")
+    old_creation = """  {$IFDEF Gtk2IME}
+  FImeHandler := LazSynImeGtk2 .Create(Self);
+  FImeHandler.InvalidateLinesMethod := @InvalidateLines;
+  {$ENDIF}"""
+    new_creation = """  {$IFDEF Gtk2IME}
+  FImeHandler := LazSynImeGtk2 .Create(Self);
+  FImeHandler.InvalidateLinesMethod := @InvalidateLines;
+  {$ENDIF}
+  {$IFDEF QtIME}
+  FImeHandler := LazSynImeQt.Create(Self);
+  FImeHandler.InvalidateLinesMethod := @InvalidateLines;
+  {$ENDIF}"""
+    if content.count(old_creation) != 1:
+        print("ERROR (synedit.pp): FImeHandler creation anchor not found exactly once.")
         sys.exit(1)
-    content = content.replace(old_priv_anchor, new_priv_anchor, 1)
+    content = content.replace(old_creation, new_creation, 1)
 
     old_impl = """function TCustomSynEdit.CaretYPix: Integer;
 var
@@ -178,30 +203,139 @@ begin
 end;
 
 procedure TCustomSynEdit.WMImeQueryCaretPos(var Message: TMessage);
+begin
+  if FImeHandler <> nil then
+    FImeHandler.WMImeQueryCaretPos(Message);
+end;
+
+procedure TCustomSynEdit.WMImeSetPreedit(var Message: TMessage);
+begin
+  if FImeHandler <> nil then
+    FImeHandler.WMImeSetPreedit(Message);
+end;"""
+    if content.count(old_impl) != 1:
+        print("ERROR (synedit.pp): CaretYPix implementation anchor not found exactly once.")
+        sys.exit(1)
+    content = content.replace(old_impl, new_impl, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("OK: synedit.pp patched (thin LazSynIme forwarders).")
+
+
+def patch_lazsynimmbase():
+    path = f"{LAZARUS_SRC}/components/synedit/lazsynimmbase.pas"
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    old_decl = """    procedure WMImeEndComposition(var Msg: TMessage); virtual;
+    procedure FocusKilled; virtual;"""
+    new_decl = """    procedure WMImeEndComposition(var Msg: TMessage); virtual;
+    // JPSupport (Qt5/Qt6): the candidate-window caret-position query and
+    // the preedit (composing) text notification. These mirror the
+    // structure of the existing WMIme* messages above; see LazSynImeQt
+    // (lazsynqtimm.pas) for the concrete implementation. Kept virtual and
+    // empty by default so other platforms' LazSynIme subclasses are
+    // unaffected.
+    procedure WMImeQueryCaretPos(var Msg: TMessage); virtual;
+    procedure WMImeSetPreedit(var Msg: TMessage); virtual;
+    procedure FocusKilled; virtual;"""
+    if content.count(old_decl) != 1:
+        print("ERROR (lazsynimmbase.pas): declaration anchor not found exactly once.")
+        sys.exit(1)
+    content = content.replace(old_decl, new_decl, 1)
+
+    old_impl = """procedure LazSynIme.WMImeEndComposition(var Msg: TMessage);
+begin
+end;
+
+procedure LazSynIme.FocusKilled;
+begin
+end;"""
+    new_impl = """procedure LazSynIme.WMImeEndComposition(var Msg: TMessage);
+begin
+end;
+procedure LazSynIme.WMImeQueryCaretPos(var Msg: TMessage);
+begin
+end;
+procedure LazSynIme.WMImeSetPreedit(var Msg: TMessage);
+begin
+end;
+
+procedure LazSynIme.FocusKilled;
+begin
+end;"""
+    if content.count(old_impl) != 1:
+        print("ERROR (lazsynimmbase.pas): implementation anchor not found exactly once.")
+        sys.exit(1)
+    content = content.replace(old_impl, new_impl, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("OK: lazsynimmbase.pas patched (LazSynIme base class extended).")
+
+
+def patch_lazsynqtimm():
+    # JPSupport: new file, LazSynImeQt - the concrete LazSynIme subclass
+    # for Qt5/Qt6, holding all the logic that used to live directly on
+    # TCustomSynEdit. Deliberately depends only on SynEditMiscClasses (for
+    # TSynEditBase/LazSynIme's own FriendEdit) rather than the SynEdit
+    # unit itself: CaretXPix/CaretYPix/LineHeight/Options/ScreenCaret are
+    # all already available on TSynEditBase, and pulling in the full
+    # SynEdit unit here would cause a circular unit reference (SynEdit
+    # uses LazSynQtIMM, which would then need to use SynEdit back).
+    path = f"{LAZARUS_SRC}/components/synedit/lazsynqtimm.pas"
+    content = """unit LazSynQtIMM;
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, Types, Graphics, Controls, ExtCtrls, LCLType, LMessages,
+  Messages, LazSynIMMBase, SynEditMiscClasses, SynEditTypes;
+
+type
+  { LazSynImeQt }
+  LazSynImeQt = class(LazSynIme)
+  private
+    FPreeditBox: TPaintBox;
+    FPreeditInfo: TIMEPreeditInfo;
+    procedure EnsurePreeditBox;
+    procedure PreeditBoxPaint(Sender: TObject);
+  public
+    procedure WMImeQueryCaretPos(var Msg: TMessage); override;
+    procedure WMImeSetPreedit(var Msg: TMessage); override;
+  end;
+
+implementation
+
+{ LazSynImeQt }
+
+procedure LazSynImeQt.WMImeQueryCaretPos(var Msg: TMessage);
 var
   R: PRect;
 begin
-  R := PRect(Message.LParam);
+  R := PRect(Msg.LParam);
   if R = nil then
     Exit;
-  R^.Left := CaretXPix;
-  R^.Top := CaretYPix;
+  R^.Left := FriendEdit.CaretXPix;
+  R^.Top := FriendEdit.CaretYPix;
   R^.Right := R^.Left + 2;
-  R^.Bottom := R^.Top + LineHeight;
-  Message.Result := 1;
+  R^.Bottom := R^.Top + FriendEdit.LineHeight;
+  Msg.Result := 1;
 end;
 
-procedure TCustomSynEdit.JPSupportEnsurePreeditBox;
+procedure LazSynImeQt.EnsurePreeditBox;
 begin
-  if FJPSupportPreeditBox <> nil then
+  if FPreeditBox <> nil then
     Exit;
-  FJPSupportPreeditBox := TPaintBox.Create(Self);
-  FJPSupportPreeditBox.Parent := Self;
-  FJPSupportPreeditBox.Visible := False;
-  FJPSupportPreeditBox.OnPaint := @JPSupportPreeditBoxPaint;
+  FPreeditBox := TPaintBox.Create(FriendEdit);
+  FPreeditBox.Parent := TWinControl(FriendEdit);
+  FPreeditBox.Visible := False;
+  FPreeditBox.OnPaint := @PreeditBoxPaint;
 end;
 
-procedure TCustomSynEdit.JPSupportPreeditBoxPaint(Sender: TObject);
+procedure LazSynImeQt.PreeditBoxPaint(Sender: TObject);
 var
   TextH: Integer;
   i, SegStart, SegLen, SegLeft, SegW: Integer;
@@ -209,8 +343,8 @@ var
   IsFocused: Boolean;
   CursorX: Integer;
 const
-  // JPSupport (Qt5): fallback highlight color for the currently-focused
-  // bunsetsu (segment), used since Fcitx5/Mozc's own TextFormat
+  // JPSupport (Qt5/Qt6): fallback highlight color for the currently-
+  // focused bunsetsu (segment), used since Fcitx5/Mozc's own TextFormat
   // background is read but a consistent, theme-independent highlight is
   // preferable to whatever raw color Qt reports.
   clJPSupportFocusedSegment = $00D8B000; // BGR: a muted (pale) blue highlight
@@ -219,35 +353,35 @@ const
   // top of (same color for both would make the underline invisible).
   clJPSupportFocusedUnderline = $00E08000; // BGR: a stronger, saturated blue
 begin
-  with FJPSupportPreeditBox.Canvas do
+  with FPreeditBox.Canvas do
   begin
-    Font := Self.Font;
+    Font := FriendEdit.Font;
     TextH := TextHeight('Wg');
-    Brush.Color := Self.Color;
+    Brush.Color := FriendEdit.Color;
     Brush.Style := bsSolid;
     FillRect(ClipRect);
     SegLeft := 0;
-    if FJPSupportPreeditInfo.SegmentCount = 0 then
+    if FPreeditInfo.SegmentCount = 0 then
     begin
       // No segment attributes at all (e.g. still in raw romaji-typing
       // stage, before Fcitx5/Mozc has started segmenting) - draw the
       // whole preedit string as one plain, underlined run.
-      TextOut(0, 0, FJPSupportPreeditInfo.Text);
+      TextOut(0, 0, FPreeditInfo.Text);
       Pen.Color := Font.Color;
-      Line(0, TextH - 1, TextWidth(FJPSupportPreeditInfo.Text), TextH - 1);
+      Line(0, TextH - 1, TextWidth(FPreeditInfo.Text), TextH - 1);
     end
     else
     begin
-      for i := 0 to FJPSupportPreeditInfo.SegmentCount - 1 do
+      for i := 0 to FPreeditInfo.SegmentCount - 1 do
       begin
-        SegStart := FJPSupportPreeditInfo.Segments[i].Start;
-        SegLen := FJPSupportPreeditInfo.Segments[i].Length;
-        IsFocused := FJPSupportPreeditInfo.Segments[i].Focused;
+        SegStart := FPreeditInfo.Segments[i].Start;
+        SegLen := FPreeditInfo.Segments[i].Length;
+        IsFocused := FPreeditInfo.Segments[i].Focused;
         if (SegStart < 0) or (SegLen <= 0) or
-           (SegStart + SegLen > Length(FJPSupportPreeditInfo.Text)) then
+           (SegStart + SegLen > Length(FPreeditInfo.Text)) then
           Continue;
-        SegText := Copy(FJPSupportPreeditInfo.Text, SegStart + 1, SegLen);
-        Font.Style := Self.Font.Style;
+        SegText := Copy(FPreeditInfo.Text, SegStart + 1, SegLen);
+        Font.Style := FriendEdit.Font.Style;
         SegW := TextWidth(SegText);
         if IsFocused then
         begin
@@ -258,7 +392,7 @@ begin
           // remains visible instead of blending into a same-toned fill.
           FillRect(Rect(SegLeft, 0, SegLeft + SegW, TextH - 3));
         end;
-        Font.Color := Self.Font.Color;
+        Font.Color := FriendEdit.Font.Color;
         Brush.Style := bsClear;
         TextOut(SegLeft, 0, SegText);
         // JPSupport: underline for the currently-focused segment - drawn
@@ -278,7 +412,7 @@ begin
         end
         else
         begin
-          Pen.Color := Self.Font.Color;
+          Pen.Color := FriendEdit.Font.Color;
           Pen.Width := 1;
           Line(SegLeft, TextH - 1, SegLeft + SegW, TextH - 1);
         end;
@@ -291,10 +425,10 @@ begin
     // A plain, slightly-thick line in the text color is enough since
     // SynEdit's own caret is hidden while composing (see WMImeSetPreedit)
     // and no longer visually competes with it.
-    if FJPSupportPreeditInfo.CursorVisible and (FJPSupportPreeditInfo.CursorPos >= 0) and
-       (FJPSupportPreeditInfo.CursorPos <= Length(FJPSupportPreeditInfo.Text)) then
+    if FPreeditInfo.CursorVisible and (FPreeditInfo.CursorPos >= 0) and
+       (FPreeditInfo.CursorPos <= Length(FPreeditInfo.Text)) then
     begin
-      CursorX := TextWidth(Copy(FJPSupportPreeditInfo.Text, 1, FJPSupportPreeditInfo.CursorPos));
+      CursorX := TextWidth(Copy(FPreeditInfo.Text, 1, FPreeditInfo.CursorPos));
       Pen.Color := Font.Color;
       Pen.Width := 2;
       Line(CursorX, 0, CursorX, TextH);
@@ -303,22 +437,22 @@ begin
   end;
 end;
 
-procedure TCustomSynEdit.WMImeSetPreedit(var Message: TMessage);
+procedure LazSynImeQt.WMImeSetPreedit(var Msg: TMessage);
 var
   Info: PIMEPreeditInfo;
   TextW, TextH: Integer;
 begin
-  Info := PIMEPreeditInfo(Message.LParam);
+  Info := PIMEPreeditInfo(Msg.LParam);
   if Info = nil then
     Exit;
-  JPSupportEnsurePreeditBox;
-  FJPSupportPreeditInfo := Info^;
-  if Length(FJPSupportPreeditInfo.Text) = 0 then
+  EnsurePreeditBox;
+  FPreeditInfo := Info^;
+  if Length(FPreeditInfo.Text) = 0 then
   begin
-    FJPSupportPreeditBox.Visible := False;
+    FPreeditBox.Visible := False;
     // JPSupport: composition ended - restore SynEdit's own (blinking)
     // caret, which we hid while composing (see below).
-    ScreenCaret.Visible := not (eoNoCaret in Options);
+    ScreenCaret.Visible := not (eoNoCaret in FriendEdit.Options);
   end
   else
   begin
@@ -329,25 +463,23 @@ begin
     // bunsetsu/segment navigation - the two carets were simply competing
     // for attention, and the real one (blinking) is far more prominent.
     ScreenCaret.Visible := False;
-    Canvas.Font := Self.Font;
-    TextW := Canvas.TextWidth(FJPSupportPreeditInfo.Text);
-    TextH := Canvas.TextHeight(FJPSupportPreeditInfo.Text);
+    FPreeditBox.Canvas.Font := FriendEdit.Font;
+    TextW := FPreeditBox.Canvas.TextWidth(FPreeditInfo.Text);
+    TextH := FPreeditBox.Canvas.TextHeight(FPreeditInfo.Text);
     // +2 extra pixels of height to fit the focused-segment underline,
     // which is drawn a couple pixels below the text baseline.
-    FJPSupportPreeditBox.SetBounds(CaretXPix, CaretYPix, TextW + 2, TextH + 3);
-    FJPSupportPreeditBox.Visible := True;
-    FJPSupportPreeditBox.Invalidate;
+    FPreeditBox.SetBounds(FriendEdit.CaretXPix, FriendEdit.CaretYPix, TextW + 2, TextH + 3);
+    FPreeditBox.Visible := True;
+    FPreeditBox.Invalidate;
   end;
-  Message.Result := 1; // acknowledge: this control handles preedit itself
-end;"""
-    if content.count(old_impl) != 1:
-        print("ERROR (synedit.pp): CaretYPix implementation anchor not found exactly once.")
-        sys.exit(1)
-    content = content.replace(old_impl, new_impl, 1)
+  Msg.Result := 1; // acknowledge: this control handles preedit itself
+end;
 
+end.
+"""
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("OK: synedit.pp patched.")
+    print("OK: lazsynqtimm.pas created (LazSynImeQt).")
 
 
 def patch_qevent_c():
@@ -1210,10 +1342,13 @@ if __name__ == "__main__":
         print(f"ERROR: unknown target '{target}' (expected qt5, qt6, or both).")
         sys.exit(1)
 
-    # lmessages.pp and synedit.pp are platform-independent (shared by
-    # Qt5 and Qt6 alike), so they are always applied regardless of target.
+    # lmessages.pp, synedit.pp, lazsynimmbase.pas, and the new
+    # lazsynqtimm.pas are all platform-independent (shared by Qt5 and Qt6
+    # alike), so they are always applied regardless of target.
     patch_lmessages()
     patch_synedit()
+    patch_lazsynimmbase()
+    patch_lazsynqtimm()
 
     if target in ("qt5", "both"):
         patch_qevent_c()
