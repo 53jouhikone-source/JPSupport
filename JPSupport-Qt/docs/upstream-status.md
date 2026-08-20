@@ -81,3 +81,28 @@ Martin_fr氏の提案を受け、Qt5/Qt6のIME実装を`TCustomSynEdit`への直
 フォーラムスレッド(topic 74458)へ改訂版の報告を投稿済み。Qt6でのビルド・
 動作確認は未着手。zeljko氏からの`libQt5Pas`/`libQt6Pas`へのC++バインディング
 拡張に関する懸念への回答はまだ届いていない。
+
+## パッチ内訳(開発者・メンテナー向け参考情報)
+
+`patches/apply_jpsupport_patches.py`が適用する変更は、以下10個の個別パッチ(Python関数)で構成されています。一般ユーザーがこの内訳を意識する必要はありません(`build_jpsupport_qt.sh`が自動的にすべて適用します)が、本家への取り込みを検討するメンテナーや、類似の改修を行いたい開発者向けに、変更範囲の全体像を記録しておきます。
+
+**共通パッチ(Qt5・Qt6両方に適用)**
+
+- `patch_lmessages`(パッチ): `LM_IM_QUERY_CARET_POS`等、IME関連の新しいメッセージ定数を`lcl/lmessages.pp`に追加
+- `patch_synedit`(パッチ): `synedit.pp`を、新しい`LM_IM_*`メッセージを`LazSynIme`ハンドラクラスへ転送するだけの薄い窓口に整理(Martin_fr氏の設計指摘を反映)
+- `patch_lazsynimmbase`(パッチ): `LazSynIme`基底クラス(`lazsynimmbase.pas`)に、`WMImeQueryCaretPos`/`WMImeSetPreedit`を仮想メソッドとして追加
+- `patch_lazsynqtimm`(新規ファイル追加): `LazSynImeQt`(`lazsynqtimm.pas`)という、Qt5/Qt6共通の`LazSynIme`サブクラスを新規作成。従来`TCustomSynEdit`に直接書いていたプリエディット描画・文節ハイライト・カーソル追跡ロジックをすべてここに集約
+
+**Qt5用パッチ**
+
+- `patch_qevent_c`(パッチ): `libQt5Pas`のC++バインディング(`qevent_c.h`/`qevent_c.cpp`)に、`QInputMethodEvent::attributes()`(文節・カーソル位置情報)を取得するゲッター関数群を追加
+- `patch_qt56`(パッチ): 上記C++関数に対応するPascal側の外部関数宣言を`qt56.pas`に追加
+- `patch_qtwidgets`(パッチ): `qtwidgets.pas`の`TQtWidget.SlotInputMethod`/`SlotInputMethodQuery`に、確定文字列のUTF-16対応(以前は文字化け・欠落があった)、文節ハイライト処理、キャレット位置追随ロジックを追加
+
+**Qt6用パッチ**(Qt5用パッチと同じ変更を、Qt6のソースツリーに対しても行うもの)
+
+- `patch_qevent_c_qt6`(パッチ): `patch_qevent_c`のQt6版
+- `patch_qt62`(パッチ): `patch_qt56`のQt6版
+- `patch_qtwidgets_qt6`(パッチ): `patch_qtwidgets`のQt6版
+
+このうち、Qt5用・Qt6用の3つずつ(`qevent_c`系・`qt56`/`qt62`・`qtwidgets`系)が、zeljko氏が懸念を示した「`libQt5Pas`/`libQt6Pas`へのC++バインディング拡張」に該当する部分です。
