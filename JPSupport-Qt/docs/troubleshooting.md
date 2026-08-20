@@ -156,14 +156,53 @@ cat ~/.config/fcitx5/profile
 
 ### 4.2 Fcitx5 + Qt6で変換キーを押しても何も起きない
 
-Ubuntu 22.04の標準リポジトリには、Qt6用のFcitx5フロントエンドプラグイン(`fcitx5-frontend-qt6`に相当するもの)が存在しない場合があります。この場合、Qt6アプリケーション側からFcitx5への接続経路自体が確立されないため、変換キーを押しても一切反応しません。
+Ubuntu 22.04の標準リポジトリには、Qt6用のFcitx5フロントエンドプラグイン(`fcitx5-frontend-qt6`)が存在しません。この場合、Qt6アプリケーション側からFcitx5への接続経路自体が確立されないため、変換キーを押しても一切反応しません。
 
-これは**JPSupport-Qtのコード側の問題ではなく、ディストリビューションのパッケージ提供状況による環境側の制約**です。現時点での回避策は限定的です。
+これは**JPSupport-Qtのコード側の問題ではなく、ディストリビューションのパッケージ提供状況による環境側の制約**です。ビルドやパッチ適用そのものが失敗しているわけではない点に注意してください——ビルドは成功し、Lazarusも起動しますが、IME入力だけが機能しない、という状態になります。
 
-- Ubuntu 24.04ベースの環境(Docker版など)であれば`fcitx5-frontend-qt6`が提供されているため、そちらで試すことを推奨します
-- Ubuntu 22.04の実機でどうしてもQt6を試したい場合は、Fcitx5のQt6向けプラグインを別途ソースからビルドする必要がありますが、この手順は本プロジェクトの検証範囲外です
+**対処法: ソースからプラグインをビルドする**
 
-なお、この制約はビルドやパッチ適用そのものが失敗しているわけではない点に注意してください。ビルドは成功し、Lazarusも起動しますが、IME入力だけが機能しない、という状態になります。
+Ubuntu 22.04の実機でも、`fcitx5-qt`をソースからビルドすることでQt6対応が可能です(実機で実際に成功を確認済みです)。ただし、システムのFcitx5コアのバージョンと、GitHub上の最新`fcitx5-qt`が要求するバージョンとの間にズレがあることが多いため、そのままでは`cmake`の設定段階でエラーになります。
+
+```bash
+# 1. ビルド依存パッケージ
+sudo apt install -y cmake extra-cmake-modules libxcb1-dev libxkbcommon-dev \
+    qt6-base-dev qt6-base-private-dev libfcitx5core-dev libfcitx5config-dev \
+    libfcitx5utils-dev
+
+# 2. ソース取得
+git clone --depth 1 https://github.com/fcitx/fcitx5-qt.git
+cd fcitx5-qt
+```
+
+システムのFcitx5コアのバージョンを確認します。
+
+```bash
+apt-cache policy fcitx5
+```
+
+`CMakeLists.txt`内で要求されているバージョンと、システムの実際のバージョンを比較してください。
+
+```bash
+grep -n "find_package(Fcitx5Utils" CMakeLists.txt
+```
+
+もしバージョンが一致しない(要求バージョンの方が新しい)場合、この行の要求バージョンをシステムの実バージョンに書き換えます(例: システムが`5.0.14`なら、要求も`5.0.14`に下げる)。この回避策は、システムのコアが実際に要求APIを満たしている場合にのみ有効です。要求バージョン以降で追加された新しいAPIをソース側が使っている場合は、コンパイルエラーになる可能性があります。
+
+```bash
+mkdir build && cd build
+cmake -D CMAKE_INSTALL_PREFIX=/usr \
+      -D CMAKE_BUILD_TYPE=Release \
+      -D CMAKE_SKIP_INSTALL_RPATH=ON \
+      -D ENABLE_QT4=OFF \
+      -D ENABLE_QT5=OFF \
+      -D ENABLE_QT6=ON \
+      -Wno-dev ..
+make -j$(nproc)
+sudo make install
+```
+
+インストール後、プラグインが正しい場所(`qmake6 -query QT_INSTALL_PLUGINS`で確認できるパス配下の`platforminputcontexts/`)に配置されているか確認し、Fcitx5デーモンを再起動してから(4.1参照)、Qt6版Lazarusで試してください。
 
 ### 4.3 IBus環境で `Ctrl+Space` が効かない/候補ウィンドウが左上に固定される
 

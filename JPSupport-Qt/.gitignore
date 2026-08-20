@@ -1,0 +1,5 @@
+# ビルド成果物(検証用に作成される、巨大なバイナリを含むディレクトリ)
+jpsupport-qt-build/
+jpsupport-qt-build-qt5/
+jpsupport-qt-build-qt6/
+workspace/
