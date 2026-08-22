@@ -42,37 +42,38 @@ Fcitx5 + Mozc環境での動作を前提に、以下を実現しています。
 
 ### 手順
 
-1. 必要なツール一式をインストールします。
-
-   Qt5版:
+1. 必要なツール一式をインストールします。Qt5・Qt6のどちらを試すか迷っている場合や、両方試したい場合は、まとめて一度にインストールしてしまって構いません(パッケージ自体は競合しません)。
 
    ```bash
    sudo apt install -y build-essential gdb git python3 fpc fpc-source \
        qtbase5-dev qt5-qmake qtchooser libqt5x11extras5-dev \
        libqt5pas-dev libqt5pas1 fcitx5 fcitx5-frontend-qt5 \
-       fcitx5-frontend-gtk3 fonts-noto-cjk
+       fcitx5-frontend-gtk3 fonts-noto-cjk qt6-base-dev
    ```
 
-   Qt6版はさらに以下も必要です(Ubuntu 22.04には`fcitx5-frontend-qt6`パッケージが存在しないため、これは別途ソースからのビルドが必要です。詳しくは`docs/troubleshooting.md`を参照してください):
+   Qt6版でIME(日本語入力)を使うには、上記に加えて`fcitx5-qt`のソースビルドが必要です(Ubuntu 22.04には`fcitx5-frontend-qt6`パッケージが存在しないため)。これは**システム全体に対して一度行えば十分**で、以降は新しくビルドし直すたびにやり直す必要はありません。手順は`docs/troubleshooting.md`の「4.2 Fcitx5 + Qt6で変換キーを押しても何も起きない」を参照してください。
+
+2. `patches/build_jpsupport_qt.sh`スクリプトを実行します。ソース取得・パッチ適用・ライブラリの再構築・Lazarus本体のビルドまで、一連の作業をまとめて行います。
 
    ```bash
-   sudo apt install -y qt6-base-dev
+   ./patches/build_jpsupport_qt.sh qt5
+   # または
+   ./patches/build_jpsupport_qt.sh qt6
    ```
-2. `patches/build_jpsupport_qt.sh`スクリプトを実行します。ソース取得・パッチ適用・ライブラリの再構築・Lazarus本体のビルドまで、一連の作業をまとめて行います(`qt5`・`qt6`・`both`から対象を選べます)
 
-```bash
-./patches/build_jpsupport_qt.sh qt5
-```
+   完了まで、実機での計測では概ね20〜25分程度でした(環境により前後します)。完了すると、次に起動すべきコマンドが画面に表示されます。
 
-完了まで、環境によっては数十分程度かかります。完了すると、次に起動すべきコマンドが画面に表示されます
+   **Qt5・Qt6の両方を試したい場合**は、このスクリプトをそれぞれ個別に実行してください。ビルド先ディレクトリ(`jpsupport-qt-build-qt5/`・`jpsupport-qt-build-qt6/`)はバージョンごとに自動的に分かれるため、両方を同時に共存させて使えます。
 
-3. **既存の設定と衝突しないよう、専用の設定場所を指定して起動します。** ここが一番重要なポイントです(スクリプトの実行結果にも、このコマンドが表示されます)
+3. **既存の設定と衝突しないよう、専用の設定場所を指定して起動します。** ここが一番重要なポイントです(スクリプトの実行結果にも、実際に使ったバージョンに応じたこのコマンドが表示されます)
 
-```bash
-   ./lazarus --pcp=~/.lazarus_jpsupport_qt
-```
+   ```bash
+   ./lazarus --pcp=~/.lazarus_jpsupport_qt5
+   # または(Qt6版の場合)
+   ./lazarus --pcp=~/.lazarus_jpsupport_qt6
+   ```
 
-   もし`--pcp`を付けずに起動し、「既存の設定と衝突する可能性がある」という警告が出た場合は、必ず「中止(Abort)」を選んでください。そのまま進めると、既存のLazarus環境の設定が上書きされてしまう可能性があります
+   もし`--pcp`を付けずに起動し、「既存の設定と衝突する可能性がある」という警告が出た場合は、必ず「中止(Abort)」を選んでください。そのまま進めると、既存のLazarus環境の設定が上書きされてしまう可能性があります。
 
 これ以降は、この`--pcp`オプションを付けた状態で起動すれば、既存のLazarus環境とは完全に独立した、日本語入力対応版として使い続けられます。
 
