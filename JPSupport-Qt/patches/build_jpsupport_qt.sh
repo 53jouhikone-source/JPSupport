@@ -44,6 +44,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="$(pwd)/jpsupport-qt-build-${TARGET}"
 LAZARUS_SRC="${WORK_DIR}/lazarus-src"
 
+# JPSupport-Qtが動作確認済みのLazarusバージョン。ここを変更する際は、
+# 新バージョンでパッチ適用・ビルド・実機でのIME動作確認を行った上で
+# 更新し、docs/upstream-status.mdにも検証結果を記録してください。
+LAZARUS_VERSION="lazarus_4_8"
+
 echo "=== [1/6] 作業ディレクトリの準備 (${TARGET}版: ${WORK_DIR}) ==="
 mkdir -p "$WORK_DIR"
 
@@ -53,8 +58,8 @@ if [ -d "$LAZARUS_SRC" ]; then
     echo "      次のパッチ適用ステップでエラーになることがあります。"
     echo "      その場合は $LAZARUS_SRC を削除してから再実行してください。"
 else
-    echo "=== [2/6] Lazarusソース(fixes_4ブランチ)を取得 ==="
-    git clone --branch fixes_4 https://gitlab.com/freepascal.org/lazarus/lazarus.git "$LAZARUS_SRC"
+    echo "=== [2/6] Lazarusソース(${LAZARUS_VERSION}、正式リリース版)を取得 ==="
+    git clone --branch "$LAZARUS_VERSION" https://gitlab.com/freepascal.org/lazarus/lazarus.git "$LAZARUS_SRC"
 fi
 
 echo "=== [3/6] JPSupportパッチを適用 (対象: $TARGET) ==="
@@ -67,7 +72,7 @@ cd "$LAZARUS_SRC/lcl/interfaces/qt${QTVER}/cbindings"
 make -j"$(nproc)"
 
 echo "=== libQt${QTVER}Pas をシステムにインストール ==="
-libdir=$(dirname "$(ldconfig -p | grep "libQt5Core.so " | head -1 | awk '{print $NF}')")
+libdir=$(dirname "$(ldconfig -p | grep "libQt${QTVER}Core.so " | head -1 | awk '{print $NF}')")
 if [ -z "$libdir" ]; then
     # Fallback: common paths
     if [ -d "/usr/lib/x86_64-linux-gnu" ]; then
