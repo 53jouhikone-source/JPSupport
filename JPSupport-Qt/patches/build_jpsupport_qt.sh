@@ -119,19 +119,39 @@ LAZARUS_SRC="${WORK_DIR}/lazarus-src"
 echo "=== [1/6] 作業ディレクトリの準備 (${TARGET}版: ${WORK_DIR}) ==="
 mkdir -p "$WORK_DIR"
 
+PATCH_MARKER="${LAZARUS_SRC}/.jpsupport-patched"
+SKIP_PATCH=0
+
 if [ -d "$LAZARUS_SRC" ]; then
     echo "既存のLazarusソース($LAZARUS_SRC)が見つかりました。再利用します。"
-    echo "注意: 別バージョン(qt5/qt6)のパッチが既に当たっている場合、"
-    echo "      次のパッチ適用ステップでエラーになることがあります。"
-    echo "      その場合は $LAZARUS_SRC を削除してから再実行してください。"
+    if [ -f "$PATCH_MARKER" ] && [ "$(cat "$PATCH_MARKER")" == "${TARGET}:${LAZARUS_VERSION}" ]; then
+        echo "このソースは同じ対象(${TARGET}:${LAZARUS_VERSION})で既にパッチ適用済みと"
+        echo "記録されています。パッチ適用(ステップ3)をスキップします。"
+        SKIP_PATCH=1
+    else
+        echo "======================================================================"
+        echo "警告: このソースが「今回と同じ対象で既にパッチ適用済み」であることを"
+        echo "示す記録が見つかりません(異なるバージョン/対象で使われたか、前回の"
+        echo "実行がパッチ適用の途中で中断された可能性があります)。"
+        echo "このままパッチ適用を再実行すると、内容が二重に挿入され、"
+        echo "後のビルド(ステップ5)で原因の分かりにくいエラーになるおそれが"
+        echo "あります。心当たりがなければ、一度削除してからの再実行を推奨します:"
+        echo "  rm -rf $LAZARUS_SRC"
+        echo "======================================================================"
+    fi
 else
     echo "=== [2/6] Lazarusソース(${LAZARUS_VERSION}、正式リリース版)を取得 ==="
     git clone --branch "$LAZARUS_VERSION" https://gitlab.com/freepascal.org/lazarus/lazarus.git "$LAZARUS_SRC"
 fi
 
-echo "=== [3/6] JPSupportパッチを適用 (対象: $TARGET) ==="
-cd "$LAZARUS_SRC"
-python3 "$SCRIPT_DIR/apply_jpsupport_patches.py" "$TARGET"
+if [[ "$SKIP_PATCH" == "1" ]]; then
+    echo "=== [3/6] (スキップ: 適用済み) ==="
+else
+    echo "=== [3/6] JPSupportパッチを適用 (対象: $TARGET) ==="
+    cd "$LAZARUS_SRC"
+    python3 "$SCRIPT_DIR/apply_jpsupport_patches.py" "$TARGET"
+    echo "${TARGET}:${LAZARUS_VERSION}" > "$PATCH_MARKER"
+fi
 
 echo "=== [4/6] libQt${QTVER}Pas の自前ビルド ==="
 cd "$LAZARUS_SRC/lcl/interfaces/qt${QTVER}/cbindings"
@@ -172,12 +192,20 @@ echo "初回起動時に「既存の設定と衝突する可能性がある」�
 echo "出た場合は、必ず「中止(Abort)」を選んでください。"
 
 if [[ "$LAZARUS_VERSION" != "$DEFAULT_LAZARUS_VERSION" ]]; then
+    SELF_SCRIPT="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
     echo ""
     echo "======================================================================"
     echo "このバージョン($LAZARUS_VERSION)でのビルドが成功しました。"
-    read -r -p "今後デフォルトとして使いますか？(実機での日本語入力動作は、この確認とは別にご自身で確認してください) [y/N]: " promote
-    if [[ "$promote" == "y" || "$promote" == "Y" ]]; then
-        SELF_SCRIPT="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+    echo ""
+    echo "デフォルトに格上げすると、次回以降このスクリプトを使う全員に対して"
+    echo "既定のバージョンが変わります(このファイルを書き換えます):"
+    echo "  $SELF_SCRIPT"
+    echo ""
+    echo "格上げする場合は、確認のためバージョン名をもう一度入力してください"
+    echo "(実機での日本語入力動作は、この確認とは別にご自身で確認済みの場合のみ"
+    echo "入力してください。異なる文字列やEnterのみの場合は変更しません):"
+    read -r -p "> " promote
+    if [[ "$promote" == "$LAZARUS_VERSION" ]]; then
         sed -i "s/^DEFAULT_LAZARUS_VERSION=\".*\"/DEFAULT_LAZARUS_VERSION=\"$LAZARUS_VERSION\"/" "$SELF_SCRIPT"
         echo "更新しました: DEFAULT_LAZARUS_VERSION=\"$LAZARUS_VERSION\""
         echo "docs/upstream-status.md にも検証結果の記録をお忘れなく。"
