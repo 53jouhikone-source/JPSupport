@@ -3,3 +3,17 @@ jpsupport-qt-build/
 jpsupport-qt-build-qt5/
 jpsupport-qt-build-qt6/
 workspace/
+
+# JPSupport-Qt wizard: ビルド成果物・IDE生成物・作業退避ファイル
+wizard/jpsupport-qt-build-*
+wizard/backup/
+wizard/lib/
+wizard/project1
+wizard/*.res
+wizard/*.lps
+wizard/ppas.sh
+wizard/*.tar.gz
+wizard/*.pas_*
+wizard/*.pas.backup
+wizard/*.pas.before-*
+wizard/*.lfm_*

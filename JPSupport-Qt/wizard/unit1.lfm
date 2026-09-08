@@ -1,0 +1,178 @@
+object Form1: TForm1
+  Left = 350
+  Height = 434
+  Top = 150
+  Width = 700
+  Caption = 'JPSupport-Qt インストーラー'
+  ClientHeight = 434
+  ClientWidth = 700
+  Font.Height = -13
+  Font.Name = 'Sans'
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  LCLVersion = '2.2.6.0'
+  object LabelHeaderBuild: TLabel
+    Left = 288
+    Height = 96
+    Top = 24
+    Width = 300
+    AutoSize = False
+    Caption = '日本語入力、実装完了。'#10'それがJPSupport版 Lazarus。'#10'導入も起動も、ワンクリックで。'#10'Qt5 / Qt6 両対応。'
+    Font.Color = clTeal
+    Font.Height = -12
+    Font.Name = 'Sans'
+    ParentColor = False
+    ParentFont = False
+  end
+  object RadioGroupTarget: TRadioGroup
+    Left = 20
+    Height = 64
+    Top = 32
+    Width = 156
+    AutoFill = True
+    Caption = ' ビルドターゲット '
+    ChildSizing.LeftRightSpacing = 6
+    ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
+    ChildSizing.EnlargeVertical = crsHomogenousChildResize
+    ChildSizing.ShrinkHorizontal = crsScaleChilds
+    ChildSizing.ShrinkVertical = crsScaleChilds
+    ChildSizing.Layout = cclLeftToRightThenTopToBottom
+    ChildSizing.ControlsPerLine = 1
+    ClientHeight = 49
+    ClientWidth = 154
+    ItemIndex = 0
+    Items.Strings = (
+      'Qt5 ターゲット'
+      'Qt6 ターゲット'
+    )
+    OnClick = RadioGroupTargetSelectionChanged
+    ParentShowHint = False
+    TabOrder = 0
+  end
+  object LabelDefault: TLabel
+    Left = 20
+    Height = 14
+    Top = 105
+    Width = 231
+    Caption = '動作確認済み(デフォルト): 取得中...'
+    ParentColor = False
+  end
+  object CheckBoxAdvanced: TCheckBox
+    Left = 20
+    Height = 25
+    Top = 130
+    Width = 119
+    Caption = '上級者向け設定'
+    OnChange = CheckBoxAdvancedChange
+    TabOrder = 1
+  end
+  object GroupBoxAdvanced: TGroupBox
+    Left = 20
+    Height = 260
+    Top = 160
+    Width = 660
+    Caption = ' 上級者向けオプション '
+    ClientHeight = 245
+    ClientWidth = 658
+    TabOrder = 2
+    Visible = False
+    object LabelVersion: TLabel
+      Left = 10
+      Height = 18
+      Top = 10
+      Width = 118
+      Caption = 'Lazarusバージョン:'
+      ParentColor = False
+    end
+    object EditVersion: TEdit
+      Left = 130
+      Height = 24
+      Top = 5
+      Width = 250
+      TabOrder = 0
+    end
+    object ButtonCheckVersions: TButton
+      Left = 390
+      Height = 22
+      Top = 5
+      Width = 125
+      AutoSize = True
+      Caption = 'バージョン一覧取得'
+      OnClick = ButtonCheckVersionsClick
+      TabOrder = 1
+    end
+    object LabelCleanRebuildHint: TLabel
+      Left = 10
+      Height = 32
+      Top = 45
+      Width = 630
+      AutoSize = False
+      Caption = '作り直したい場合は、ターミナルで対象のフォルダ(例: jpsupport-qt-build-qt5 '#10'または jpsupport-qt-build-qt5-alt)を手動で rm -rf してから、再度実行してください。'
+      Font.Height = -11
+      ParentFont = False
+    end
+    object ListBoxVersions: TListBox
+      Left = 10
+      Height = 135
+      Top = 85
+      Width = 630
+      ItemHeight = 0
+      OnClick = ListBoxVersionsClick
+      TabOrder = 3
+      TopIndex = -1
+      Visible = False
+    end
+  end
+  object ButtonMainAction: TButton
+    Left = 20
+    Height = 35
+    Top = 165
+    Width = 400
+    Caption = 'JPSupport版 Lazarus をインストール・ビルドする'
+    OnClick = ButtonMainActionClick
+    TabOrder = 3
+  end
+  object ButtonLaunchLazarus: TButton
+    Left = 430
+    Height = 35
+    Top = 165
+    Width = 250
+    Caption = 'JPSupport版 Lazarus を起動'
+    Enabled = False
+    OnClick = ButtonLaunchLazarusClick
+    TabOrder = 4
+  end
+  object MemoTop: TMemo
+    Left = 20
+    Height = 80
+    Top = 210
+    Width = 660
+    ScrollBars = ssAutoBoth
+    TabOrder = 5
+  end
+  object MemoBottom: TMemo
+    Left = 20
+    Height = 70
+    Top = 300
+    Width = 660
+    ScrollBars = ssAutoBoth
+    TabOrder = 6
+  end
+  object Btn_Exit: TButton
+    Left = 656
+    Height = 22
+    Top = 8
+    Width = 34
+    AutoSize = True
+    Caption = '終了'
+    OnClick = Btn_ExitClick
+    TabOrder = 7
+  end
+  object TimerPoll: TTimer
+    Enabled = False
+    Interval = 200
+    OnTimer = TimerPollTimer
+    Left = 624
+    Top = 48
+  end
+end

@@ -144,3 +144,13 @@ Martin_fr氏の提案を受け、Qt5/Qt6のIME実装を`TCustomSynEdit`への直
 - ただし、**失敗した際の情報量には明確な差があった**。`git apply`は`patch failed: lcl/lmessages.pp:100`のように、失敗箇所の具体的なファイル・行番号を示したのに対し、Python方式(`ERROR (lmessages.pp): anchor not found exactly once.`)は、ファイル名以上の情報を一切示さない
 
 **結論**: 「`.patch`形式なら本家の変更に柔軟に耐えられる」という当初の期待は、今回の検証では実証されなかった(`git apply`のデフォルト設定では、Python方式と同程度に厳格)。ただし「失敗時に原因箇所を特定しやすい」という利点は実証された。10個のパッチ全体を`.patch`形式に全面移行する労力に見合うかは未確定で、判断を保留している。より軽い代替案として、**Python方式のエラーメッセージ自体を改善し(失敗時にどの文字列が見つからなかったかを表示するなど)、同等の診断性を安価に得る**という方向性も検討の余地がある。全面移行するかどうかは、今後の課題として持ち越す。
+
+## Raspberry Pi 4(aarch64)環境での検証(2026-09-06)
+
+開発環境をVMware(x86_64)からRaspberry Pi 4(Debian 12 bookworm、aarch64)へ移行したのに伴い、`lazarus_4_8`のQt5・Qt6両方について、aarch64環境でのビルド・IME動作を改めて確認した。
+
+- Qt5・Qt6とも、`aarch64-linux-qt5`/`aarch64-linux-qt6`ウィジェットセットとしてビルド・起動できることを確認(x86_64固有のコードパスへの依存は無いことの裏付け)
+- 日本語入力(確定処理、変換候補ウィンドウの追随含む)は、**Fcitx5 + Mozc環境で正常動作を確認**
+- **IBus環境では、変換候補ウィンドウがカーソル位置に追従せず画面左上に固定表示される**症状を確認。この制限自体は[`docs/verification-matrix.md`](verification-matrix.md)の「IBus環境での既知の制限」に記載済みだが、今回さらに、Qt本体側の既知の上流バグ([ibus/ibus#2391](https://github.com/ibus/ibus/issues/2391))であることを特定した。JPSupport-Qt側では修正できない
+
+以上により、**`lazarus_4_8`の動作確認済み環境に、aarch64(Raspberry Pi 4)を追加**する。詳細な検証マトリックスは[`docs/verification-matrix.md`](verification-matrix.md)を参照。
