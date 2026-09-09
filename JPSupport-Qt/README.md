@@ -48,16 +48,38 @@ The first run takes a while (building Lazarus itself, among other things) - anyw
 
 **To be upfront about it: unlike the "just install a package" simplicity of the GTK2 version of JPSupport, this requires rebuilding Lazarus itself from source.** This path is for people who are reasonably comfortable with development tools and have some time to spare. If you just want to try it quickly, Option 1 above is the way to go.
 
-#### Using the GUI wizard (recommended)
+#### Common setup
 
-The `wizard/` folder contains a Lazarus/LCL GUI tool that automates everything below, with no terminal work required. One button ("Install & Build") handles everything from installing the required packages to building Lazarus itself.
+These steps are needed either way, whether you use the GUI wizard or do it by hand.
 
-- Switch between Qt5 and Qt6 with the "Build Target" selector
+1. **Get the project's files (the repository).** Use the "Code" button and "Download ZIP", or:
+
+   ```bash
+   git clone https://github.com/53jouhikone-source/JPSupport.git
+   ```
+
+   This repository contains both the GTK2 version (`JPSupport`) and the Qt version (`JPSupport-Qt`). Do everything below from inside the `JPSupport-Qt/` folder.
+
+2. **Keep the `wizard/` and `patches/` folders as siblings, in the same place.** The GUI wizard looks for `patches/build_jpsupport_qt.sh` at a path relative to its own executable, so it won't work if you move these folders apart.
+
+3. **Make the `.sh` scripts executable.** Depending on how you downloaded the files, the executable bit may have been stripped.
+
+   ```bash
+   chmod +x patches/*.sh wizard/*.sh
+   ```
+
+From here, there are two ways forward.
+
+#### Using the GUI wizard (recommended, if you already have Lazarus)
+
+- Open `wizard/project1.lpi` in whatever Lazarus IDE you already have (the GTK2 version is fine too), and run it (the "Run" menu, or `F9`). The wizard's window will open
+- Click "Install & Build". Switch between Qt5 and Qt6 with the "Build Target" selector. From there, just follow the on-screen prompts - it handles everything from installing the required packages to building Lazarus itself
+
 - The "Advanced options" section lets you try a Lazarus version other than the verified default (we recommend sticking with the default for normal use)
 - To rebuild from scratch, manually delete the relevant folder (e.g. `wizard/jpsupport-qt-build-qt5`) in a terminal, then run the wizard again
 - Two maintenance scripts are also provided: `patches/bump_default_version.sh` (for developers updating the project's official default version) and `wizard/reset_wizard_state.sh` (for resetting local build state)
 
-The instructions below are for those who'd rather do it by hand.
+The instructions below are for those who'd rather do it by hand (you can start here even without Lazarus already installed).
 
 #### Doing it by hand
 

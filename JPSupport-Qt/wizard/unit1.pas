@@ -1,12 +1,10 @@
 unit unit1;
 
-// 009: 「クリーンビルド」チェックボックスを廃止。バージョン切り替え自体は
-//      既存の対象不一致自動削除ロジックで足りており、チェックボックスの
-//      存在がユーザーの理解を複雑にしていたため。手動で作業フォルダを
-//      削除したい場合は、rm -rf jpsupport-qt-build-<target>[-alt] を
-//      直接実行する運用に変更(READMEに手順を記載する想定)
-//      (008の格上げ廃止、007のエラーログ記録、006の空き容量警告、
-//      005の-alt比較用フォルダ対応、004・003・002・001の対応を維持)
+// 010: 公開前提のチェックで発覚した、開発者個人のディレクトリ(~/Projects/...)への
+//      ハードコード参照を削除。実行ファイルからの相対パス(patches/build_jpsupport_qt.sh)を
+//      優先的に探すようにした(一般ユーザーの環境には存在しないパスへの無駄な
+//      チェックを無くし、個人の作業環境がコードに残る問題も解消)
+//      (009のクリーンビルド廃止、008の格上げ廃止、007・006・005・004・003・002・001の対応を維持)
 
 {$mode objfpc}{$H+}
 
@@ -144,18 +142,15 @@ begin
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
-var
-  HomeDir: string;
 begin
-  HomeDir := GetEnvironmentVariable('HOME');
-  FScriptPath := HomeDir + '/Projects/JPSupport/JPSupport-Qt/patches/build_jpsupport_qt.sh';
+  { スクリプトは、通常このウィザードの実行ファイルと同じ場所に置かれた
+    patches/フォルダの中にある想定(リポジトリのwizard/とpatches/を、
+    親フォルダの直下に兄弟フォルダとして置いたまま使う構成)。
+    見つからない場合は、PATHの通った場所にあることを期待して
+    ファイル名のみで実行を試みる。 }
+  FScriptPath := ExtractFilePath(Application.ExeName) + 'patches/build_jpsupport_qt.sh';
   if not FileExists(FScriptPath) then
-  begin
-    if FileExists(ExtractFilePath(Application.ExeName) + 'patches/build_jpsupport_qt.sh') then
-      FScriptPath := ExtractFilePath(Application.ExeName) + 'patches/build_jpsupport_qt.sh'
-    else
-      FScriptPath := 'build_jpsupport_qt.sh';
-  end;
+    FScriptPath := 'build_jpsupport_qt.sh';
 
   FPending := '';
   FMode := omNone;
