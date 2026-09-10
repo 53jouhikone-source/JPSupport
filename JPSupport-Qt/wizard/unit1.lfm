@@ -12,14 +12,14 @@ object Form1: TForm1
   OnDestroy = FormDestroy
   LCLVersion = '2.2.6.0'
   object LabelHeaderBuild: TLabel
-    Left = 288
-    Height = 96
+    Left = 408
+    Height = 112
     Top = 24
-    Width = 300
+    Width = 232
     AutoSize = False
-    Caption = '日本語入力、実装完了。'#10'それがJPSupport版 Lazarus。'#10'導入も起動も、ワンクリックで。'#10'Qt5 / Qt6 両対応。'
+    Caption = 'Lazarusには長年、実用的な'#10'日本語入力環境がありませんでした。'#10'JPSupport版Lazarusは、Qt5・Qt6上で'#10'その課題に取り組んだLazarusです。'#10'本ツールは、その導入をワンクリックで'#10'完結させるインストーラーです。'
     Font.Color = clTeal
-    Font.Height = -12
+    Font.Height = -13
     Font.Name = 'Sans'
     ParentColor = False
     ParentFont = False
@@ -109,6 +109,7 @@ object Form1: TForm1
       AutoSize = False
       Caption = '作り直したい場合は、ターミナルで対象のフォルダ(例: jpsupport-qt-build-qt5 '#10'または jpsupport-qt-build-qt5-alt)を手動で rm -rf してから、再度実行してください。'
       Font.Height = -11
+      ParentColor = False
       ParentFont = False
     end
     object ListBoxVersions: TListBox
@@ -118,7 +119,7 @@ object Form1: TForm1
       Width = 630
       ItemHeight = 0
       OnClick = ListBoxVersionsClick
-      TabOrder = 3
+      TabOrder = 2
       TopIndex = -1
       Visible = False
     end

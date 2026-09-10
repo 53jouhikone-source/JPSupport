@@ -1,10 +1,10 @@
 unit unit1;
 
-// 010: 公開前提のチェックで発覚した、開発者個人のディレクトリ(~/Projects/...)への
-//      ハードコード参照を削除。実行ファイルからの相対パス(patches/build_jpsupport_qt.sh)を
-//      優先的に探すようにした(一般ユーザーの環境には存在しないパスへの無駄な
-//      チェックを無くし、個人の作業環境がコードに残る問題も解消)
-//      (009のクリーンビルド廃止、008の格上げ廃止、007・006・005・004・003・002・001の対応を維持)
+// 014: バージョン一覧の注記機能を削除し、リリース年月のみのシンプルな表示に
+//      簡略化。Lazarus 4.2以降は新機能を含まないバグフィックス版のみのため、
+//      手動で注記を維持するほどの情報価値が無いとの判断
+//      (013のGitLab API経由のリリース年月取得、011のパス修正、010の個人パス削除、
+//      009・008・007・006・005・004・003・002・001の対応を維持)
 
 {$mode objfpc}{$H+}
 
@@ -12,7 +12,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ExtCtrls, StdCtrls,
-  Process, StrUtils, LazFileUtils, FileUtil, BaseUnix;
+  Process, StrUtils, LazFileUtils, FileUtil, BaseUnix, fpjson, jsonparser;
 
 type
 
@@ -75,6 +75,9 @@ type
     function GetCurrentTargetName: string;
     function GetTargetBuildDirName: string;
     function GetFreeDiskSpaceBytes(const APath: string): Int64;
+    function IsValidLazarusVersionTag(const S: string): Boolean;
+    function FetchVersionListFromGitLabAPI(AList: TStrings): Boolean;
+    procedure FetchVersionListFromGitLsRemote(AList: TStrings);
   public
   end;
 
@@ -85,6 +88,10 @@ implementation
 
 const
   cRepoURL = 'https://gitlab.com/freepascal.org/lazarus/lazarus.git';
+
+  { タグ一覧+コミット日時をまとめて取得するためのGitLab API。
+    失敗時はFetchVersionListFromGitLsRemoteにフォールバックする。 }
+  cGitLabTagsAPI = 'https://gitlab.com/api/v4/projects/freepascal.org%2Flazarus%2Flazarus/repository/tags?per_page=100';
 
   { ビルド1つあたり実測約1.7GB。一時ファイル(git・コンパイル中間ファイル等)の
     余裕を見て、この値を下回ったら警告する。 }
@@ -143,12 +150,12 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  { スクリプトは、通常このウィザードの実行ファイルと同じ場所に置かれた
-    patches/フォルダの中にある想定(リポジトリのwizard/とpatches/を、
-    親フォルダの直下に兄弟フォルダとして置いたまま使う構成)。
-    見つからない場合は、PATHの通った場所にあることを期待して
+  { スクリプトは、通常このウィザードの実行ファイル(wizard/)から見て
+    1つ上の階層にあるpatches/フォルダの中にある想定(リポジトリの
+    wizard/とpatches/を、親フォルダの直下に兄弟フォルダとして置いたまま
+    使う構成)。見つからない場合は、PATHの通った場所にあることを期待して
     ファイル名のみで実行を試みる。 }
-  FScriptPath := ExtractFilePath(Application.ExeName) + 'patches/build_jpsupport_qt.sh';
+  FScriptPath := ExtractFilePath(Application.ExeName) + '../patches/build_jpsupport_qt.sh';
   if not FileExists(FScriptPath) then
     FScriptPath := 'build_jpsupport_qt.sh';
 
@@ -255,29 +262,54 @@ begin
   UpdateDefaultVersionLabel;
 end;
 
-procedure TForm1.ButtonCheckVersionsClick(Sender: TObject);
+function TForm1.IsValidLazarusVersionTag(const S: string): Boolean;
 var
-  Output, S, Major: string;
-  Lines: TStringList;
-  i, p, us1, us2: Integer;
+  Major: string;
+  us1, us2: Integer;
   MajorNum: Integer;
   ok: Boolean;
 begin
-  ListBoxVersions.Items.Clear;
-  ListBoxVersions.Items.Add('取得中...');
-  Application.ProcessMessages;
+  Result := False;
+  if Copy(S, 1, Length('lazarus_')) <> 'lazarus_' then
+    Exit;
+  Major := Copy(S, Length('lazarus_') + 1, Length(S));
 
+  ok := (Major <> '');
+  for us1 := 1 to Length(Major) do
+    if not (Major[us1] in ['0'..'9', '_']) then
+    begin
+      ok := False;
+      Break;
+    end;
+  if not ok then
+    Exit;
+
+  us2 := Pos('_', Major);
+  if us2 = 0 then
+    MajorNum := StrToIntDef(Major, -1)
+  else
+    MajorNum := StrToIntDef(Copy(Major, 1, us2 - 1), -1);
+
+  Result := MajorNum >= 4;
+end;
+
+procedure TForm1.FetchVersionListFromGitLsRemote(AList: TStrings);
+var
+  Output, S: string;
+  Lines: TStringList;
+  i, p: Integer;
+begin
+  { GitLab APIでの取得に失敗した場合のフォールバック。タグ名のみの一覧になり、
+    リリース年月・注記は付かない。 }
   if not RunCommand('git', ['ls-remote', '--tags', cRepoURL], Output) then
   begin
-    ListBoxVersions.Items.Clear;
-    ListBoxVersions.Items.Add('(取得に失敗しました。ネットワークを確認してください)');
+    AList.Add('(取得に失敗しました。ネットワークを確認してください)');
     Exit;
   end;
 
   Lines := TStringList.Create;
   try
     Lines.Text := Output;
-    ListBoxVersions.Items.Clear;
     for i := 0 to Lines.Count - 1 do
     begin
       S := Lines[i];
@@ -287,34 +319,81 @@ begin
       S := Copy(S, p + Length('refs/tags/'), Length(S));
       if Pos('^{}', S) > 0 then
         Continue;
-      if Copy(S, 1, Length('lazarus_')) <> 'lazarus_' then
-        Continue;
-      Major := Copy(S, Length('lazarus_') + 1, Length(S));
-
-      ok := (Major <> '');
-      for us1 := 1 to Length(Major) do
-        if not (Major[us1] in ['0'..'9', '_']) then
-        begin
-          ok := False;
-          Break;
-        end;
-      if not ok then
-        Continue;
-
-      us2 := Pos('_', Major);
-      if us2 = 0 then
-        MajorNum := StrToIntDef(Major, -1)
-      else
-        MajorNum := StrToIntDef(Copy(Major, 1, us2 - 1), -1);
-
-      if MajorNum >= 4 then
-        ListBoxVersions.Items.Add(S);
+      if IsValidLazarusVersionTag(S) then
+        AList.Add(S);
     end;
-    if ListBoxVersions.Items.Count = 0 then
-      ListBoxVersions.Items.Add('(該当するバージョンが見つかりませんでした)');
   finally
     Lines.Free;
   end;
+end;
+
+function TForm1.FetchVersionListFromGitLabAPI(AList: TStrings): Boolean;
+var
+  Output, TagName, CreatedAt, YearMonth, DisplayLine: string;
+  JData, JCommit: TJSONData;
+  JArray: TJSONArray;
+  JItem: TJSONObject;
+  i: Integer;
+begin
+  Result := False;
+  if not RunCommand('curl', ['-s', '--max-time', '10', cGitLabTagsAPI], Output) then
+    Exit;
+  if Trim(Output) = '' then
+    Exit;
+
+  try
+    JData := GetJSON(Output);
+  except
+    Exit;
+  end;
+
+  try
+    if not (JData is TJSONArray) then
+      Exit;
+    JArray := TJSONArray(JData);
+    for i := 0 to JArray.Count - 1 do
+    begin
+      if not (JArray.Items[i] is TJSONObject) then
+        Continue;
+      JItem := TJSONObject(JArray.Items[i]);
+      TagName := JItem.Get('name', '');
+      if not IsValidLazarusVersionTag(TagName) then
+        Continue;
+
+      CreatedAt := '';
+      JCommit := JItem.Find('commit');
+      if (JCommit <> nil) and (JCommit is TJSONObject) then
+        CreatedAt := TJSONObject(JCommit).Get('created_at', '');
+      YearMonth := Copy(CreatedAt, 1, 7); { "YYYY-MM-DD..." → "YYYY-MM" }
+
+      DisplayLine := TagName;
+      if YearMonth <> '' then
+        DisplayLine := DisplayLine + ' (' + YearMonth + ')';
+      AList.Add(DisplayLine);
+    end;
+    Result := AList.Count > 0;
+  finally
+    JData.Free;
+  end;
+end;
+
+procedure TForm1.ButtonCheckVersionsClick(Sender: TObject);
+begin
+  ListBoxVersions.Items.Clear;
+  ListBoxVersions.Items.Add('取得中...');
+  Application.ProcessMessages;
+
+  ListBoxVersions.Items.Clear;
+  if not FetchVersionListFromGitLabAPI(ListBoxVersions.Items) then
+  begin
+    { リリース年月付きでの取得に失敗した場合、従来のgit ls-remoteによる
+      タグ名のみの一覧にフォールバックする。 }
+    ListBoxVersions.Items.Clear;
+    FetchVersionListFromGitLsRemote(ListBoxVersions.Items);
+  end;
+
+  if ListBoxVersions.Items.Count = 0 then
+    ListBoxVersions.Items.Add('(該当するバージョンが見つかりませんでした)');
 end;
 
 procedure TForm1.Btn_ExitClick(Sender: TObject);
@@ -351,9 +430,23 @@ begin
 end;
 
 procedure TForm1.ListBoxVersionsClick(Sender: TObject);
+var
+  FullLine, RawTag: string;
+  SpacePos: Integer;
 begin
   if ListBoxVersions.ItemIndex >= 0 then
-    EditVersion.Text := ListBoxVersions.Items[ListBoxVersions.ItemIndex];
+  begin
+    FullLine := ListBoxVersions.Items[ListBoxVersions.ItemIndex];
+    { 表示は "lazarus_4_8 (2026-06) — 現在の動作確認済みデフォルト" のように
+      年月・注記が付いているため、EditVersionには先頭のタグ名部分だけを渡す。
+      タグ名自体は空白を含まない。 }
+    SpacePos := Pos(' ', FullLine);
+    if SpacePos > 0 then
+      RawTag := Copy(FullLine, 1, SpacePos - 1)
+    else
+      RawTag := FullLine;
+    EditVersion.Text := RawTag;
+  end;
 end;
 
 procedure TForm1.AppendBottom(const ALine: string);
