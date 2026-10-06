@@ -1,27 +1,23 @@
 diff --git a/components/synedit/lazsynimmbase.pas b/components/synedit/lazsynimmbase.pas
-index 7972e464bc..11cab771cd 100644
+index 7972e464bc..669804325c 100644
 --- a/components/synedit/lazsynimmbase.pas
 +++ b/components/synedit/lazsynimmbase.pas
-@@ -30,6 +30,14 @@ type
+@@ -30,6 +30,10 @@ type
      procedure WMImeComposition(var Msg: TMessage); virtual;
      procedure WMImeStartComposition(var Msg: TMessage); virtual;
      procedure WMImeEndComposition(var Msg: TMessage); virtual;
-+    // JPSupport (Qt5/Qt6): the candidate-window caret-position query and
-+    // the preedit (composing) text notification. These mirror the
-+    // structure of the existing WMIme* messages above; see LazSynImeQt
-+    // (lazsynqtimm.pas) for the concrete implementation. Kept virtual and
-+    // empty by default so other platforms' LazSynIme subclasses are
-+    // unaffected.
-+    procedure WMImeQueryCaretPos(var Msg: TMessage); virtual;
++    // Qt-only: WMImeQuery responds to the existing LM_IM_QUERY (caret point);
++    // WMImeSetPreedit is new. See LazSynImeQt (lazsynqtimm.pas). Virtual/empty elsewhere.
++    procedure WMImeQuery(var Msg: TMessage); virtual;
 +    procedure WMImeSetPreedit(var Msg: TMessage); virtual;
      procedure FocusKilled; virtual;
      property InvalidateLinesMethod : TInvalidateLines write FInvalidateLinesMethod;
      property OnIMEStart: TNotifyEvent read FOnIMEStart write FOnIMEStart;
-@@ -92,6 +100,12 @@ end;
+@@ -92,6 +96,12 @@ end;
  procedure LazSynIme.WMImeEndComposition(var Msg: TMessage);
  begin
  end;
-+procedure LazSynIme.WMImeQueryCaretPos(var Msg: TMessage);
++procedure LazSynIme.WMImeQuery(var Msg: TMessage);
 +begin
 +end;
 +procedure LazSynIme.WMImeSetPreedit(var Msg: TMessage);
@@ -32,29 +28,48 @@ index 7972e464bc..11cab771cd 100644
  begin
 diff --git a/components/synedit/lazsynqtimm.pas b/components/synedit/lazsynqtimm.pas
 new file mode 100644
-index 0000000000..667b43a2d3
+index 0000000000..01fce3bfac
 --- /dev/null
 +++ b/components/synedit/lazsynqtimm.pas
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,238 @@
 +unit LazSynQtIMM;
++
 +{$mode objfpc}{$H+}
 +
 +interface
 +
 +uses
-+  Classes, SysUtils, Types, Graphics, Controls, ExtCtrls, LCLType, LMessages,
-+  Messages, LazSynIMMBase, SynEditMiscClasses, SynEditTypes;
++  Classes, SysUtils, Types, Graphics, LCLType, LMessages, Messages,
++  LazSynIMMBase, SynEditMiscClasses, SynEditPointClasses, SynEditMarkupSelection,
++  SynEditMarkup, LazSynEditText, LazEditTextAttributes;
 +
 +type
 +  { LazSynImeQt }
++
 +  LazSynImeQt = class(LazSynIme)
 +  private
-+    FPreeditBox: TPaintBox;
 +    FPreeditInfo: TIMEPreeditInfo;
-+    procedure EnsurePreeditBox;
-+    procedure PreeditBoxPaint(Sender: TObject);
++    // Whole composing (preedit) range, held as real, undo-hidden text -
++    // see SetImeTempText - plus the sub-range of the one currently-focused
++    // bunsetsu (segment), so the two can be styled differently via markup
++    // instead of custom painting. Mirrors LazSynImeFull's approach
++    // (lazsynimm.pas) for Windows, adapted from its 3-selection / COMPATTR
++    // scheme to Qt's single-event TIMEPreeditInfo segment array.
++    FImeBlockSelection: TSynEditSelection;
++    FImeFocusedSelection: TSynEditSelection;
++    FImeMarkup: TSynEditMarkupSelection;
++    FImeFocusedMarkup: TSynEditMarkupSelection;
++    // True while a composition is in progress - used to anchor
++    // FImeBlockSelection to the real caret position exactly once, at the
++    // start of each composition (Qt gives us no separate "start" event;
++    // we detect it ourselves via the Text=''->non-'' transition).
++    FComposing: Boolean;
++    function CharToByte(AStart, AChars: Integer): Integer;
++    procedure SetImeTempText(const S: String);
 +  public
-+    procedure WMImeQueryCaretPos(var Msg: TMessage); override;
++    constructor Create(AOwner: TSynEditBase); reintroduce;
++    destructor Destroy; override;
++    procedure WMImeQuery(var Msg: TMessage); override;
 +    procedure WMImeSetPreedit(var Msg: TMessage); override;
 +  end;
 +
@@ -62,173 +77,201 @@ index 0000000000..667b43a2d3
 +
 +{ LazSynImeQt }
 +
-+procedure LazSynImeQt.WMImeQueryCaretPos(var Msg: TMessage);
-+var
-+  R: PRect;
++constructor LazSynImeQt.Create(AOwner: TSynEditBase);
 +begin
-+  R := PRect(Msg.LParam);
-+  if R = nil then
-+    Exit;
-+  R^.Left := FriendEdit.CaretXPix;
-+  R^.Top := FriendEdit.CaretYPix;
-+  R^.Right := R^.Left + 2;
-+  R^.Bottom := R^.Top + FriendEdit.LineHeight;
-+  Msg.Result := 1;
++  inherited Create(AOwner);
++
++  FImeBlockSelection := TSynEditSelection.Create(ViewedTextBuffer, False);
++  FImeBlockSelection.InvalidateLinesMethod := @InvalidateLines;
++  FImeFocusedSelection := TSynEditSelection.Create(ViewedTextBuffer, False);
++  FImeFocusedSelection.InvalidateLinesMethod := @InvalidateLines;
++
++  FImeMarkup := TSynEditMarkupSelection.Create(FriendEdit, FImeBlockSelection);
++  FImeFocusedMarkup := TSynEditMarkupSelection.Create(FriendEdit, FImeFocusedSelection);
++  TSynEditMarkupManager(MarkupMgr).AddMarkUp(FImeMarkup);
++  TSynEditMarkupManager(MarkupMgr).AddMarkUp(FImeFocusedMarkup);
++
++  // Whole composing range: a plain, thin, dotted underline - the usual
++  // "not yet committed" convention.
++  FImeMarkup.MarkupInfo.Clear;
++  FImeMarkup.MarkupInfo.FramePriority := MaxInt - 1;
++  FImeMarkup.MarkupInfo.FrameColor := clDefault;
++  FImeMarkup.MarkupInfo.FrameStyle := slsDashed;
++  FImeMarkup.MarkupInfo.FrameEdges := sfeBottom;
++  FImeMarkup.MarkupInfo.FrameAlpha := 255;
++
++  // Currently-focused bunsetsu (segment): selection-like background plus
++  // a solid underline, so it visually stands out from the rest.
++  FImeFocusedMarkup.MarkupInfo.Assign(FriendEdit.SelectedColor);
++  FImeFocusedMarkup.MarkupInfo.FramePriority := MaxInt;
++  FImeFocusedMarkup.MarkupInfo.FrameColor := clDefault;
++  FImeFocusedMarkup.MarkupInfo.FrameStyle := slsDashed;
++  FImeFocusedMarkup.MarkupInfo.FrameEdges := sfeBottom;
++  FImeFocusedMarkup.MarkupInfo.FrameAlpha := 255;
 +end;
 +
-+procedure LazSynImeQt.EnsurePreeditBox;
++destructor LazSynImeQt.Destroy;
 +begin
-+  if FPreeditBox <> nil then
-+    Exit;
-+  FPreeditBox := TPaintBox.Create(FriendEdit);
-+  FPreeditBox.Parent := TWinControl(FriendEdit);
-+  FPreeditBox.Visible := False;
-+  FPreeditBox.OnPaint := @PreeditBoxPaint;
++  TSynEditMarkupManager(MarkupMgr).RemoveMarkUp(FImeMarkup);
++  TSynEditMarkupManager(MarkupMgr).RemoveMarkUp(FImeFocusedMarkup);
++  FreeAndNil(FImeMarkup);
++  FreeAndNil(FImeFocusedMarkup);
++  FreeAndNil(FImeBlockSelection);
++  FreeAndNil(FImeFocusedSelection);
++  inherited Destroy;
 +end;
 +
-+procedure LazSynImeQt.PreeditBoxPaint(Sender: TObject);
++// Converts a run of AChars logical characters, starting at byte position
++// AStart, into a byte count - same algorithm as the Windows reference
++// (LazSynImeFull.WMImeComposition's local CharToByte in lazsynimm.pas).
++function LazSynImeQt.CharToByte(AStart, AChars: Integer): Integer;
 +var
-+  TextH: Integer;
-+  i, SegStart, SegLen, SegLeft, SegW: Integer;
-+  SegText: WideString;
-+  IsFocused: Boolean;
-+  CursorX: Integer;
-+const
-+  // JPSupport (Qt5/Qt6): fallback highlight color for the currently-
-+  // focused bunsetsu (segment), used since Fcitx5/Mozc's own TextFormat
-+  // background is read but a consistent, theme-independent highlight is
-+  // preferable to whatever raw color Qt reports.
-+  clJPSupportFocusedSegment = $00D8B000; // BGR: a muted (pale) blue highlight
-+  // A more saturated blue than the pale highlight above, so the thick
-+  // underline is visually distinct from the highlight fill it sits on
-+  // top of (same color for both would make the underline invisible).
-+  clJPSupportFocusedUnderline = $00E08000; // BGR: a stronger, saturated blue
++  CWidth: TPhysicalCharWidths;
 +begin
-+  with FPreeditBox.Canvas do
++  CWidth := ViewedTextBuffer.GetPhysicalCharWidths(FImeBlockSelection.StartLinePos - 1);
++  Dec(AStart);
++  Result := AStart;
++  while (AChars > 0) and (Result < Length(CWidth)) do
 +  begin
-+    Font := FriendEdit.Font;
-+    TextH := TextHeight('Wg');
-+    Brush.Color := FriendEdit.Color;
-+    Brush.Style := bsSolid;
-+    FillRect(ClipRect);
-+    SegLeft := 0;
-+    if FPreeditInfo.SegmentCount = 0 then
-+    begin
-+      // No segment attributes at all (e.g. still in raw romaji-typing
-+      // stage, before Fcitx5/Mozc has started segmenting) - draw the
-+      // whole preedit string as one plain, underlined run.
-+      TextOut(0, 0, FPreeditInfo.Text);
-+      Pen.Color := Font.Color;
-+      Line(0, TextH - 1, TextWidth(FPreeditInfo.Text), TextH - 1);
-+    end
-+    else
-+    begin
-+      for i := 0 to FPreeditInfo.SegmentCount - 1 do
-+      begin
-+        SegStart := FPreeditInfo.Segments[i].Start;
-+        SegLen := FPreeditInfo.Segments[i].Length;
-+        IsFocused := FPreeditInfo.Segments[i].Focused;
-+        if (SegStart < 0) or (SegLen <= 0) or
-+           (SegStart + SegLen > Length(FPreeditInfo.Text)) then
-+          Continue;
-+        SegText := Copy(FPreeditInfo.Text, SegStart + 1, SegLen);
-+        Font.Style := FriendEdit.Font.Style;
-+        SegW := TextWidth(SegText);
-+        if IsFocused then
-+        begin
-+          Brush.Color := clJPSupportFocusedSegment;
-+          Brush.Style := bsSolid;
-+          // Leave the bottom few pixels of the highlight unfilled, so the
-+          // thick underline drawn below (in a more saturated color)
-+          // remains visible instead of blending into a same-toned fill.
-+          FillRect(Rect(SegLeft, 0, SegLeft + SegW, TextH - 3));
-+        end;
-+        Font.Color := FriendEdit.Font.Color;
-+        Brush.Style := bsClear;
-+        TextOut(SegLeft, 0, SegText);
-+        // JPSupport: underline for the currently-focused segment - drawn
-+        // as a filled rectangle (not a thick Pen line) so the extra
-+        // thickness extends only downward from the baseline instead of
-+        // bleeding symmetrically upward into the text, and in a
-+        // saturated accent color - matching the bold, clearly-offset,
-+        // colored underline convention seen in native GTK IME rendering
-+        // (e.g. Gedit + Fcitx5/Mozc). Other segments keep the plain,
-+        // thin, text-colored underline right at the baseline.
-+        if IsFocused then
-+        begin
-+          Brush.Color := clJPSupportFocusedUnderline;
-+          Brush.Style := bsSolid;
-+          FillRect(Rect(SegLeft, TextH - 2, SegLeft + SegW, TextH + 1));
-+          Brush.Style := bsClear;
-+        end
-+        else
-+        begin
-+          Pen.Color := FriendEdit.Font.Color;
-+          Pen.Width := 1;
-+          Line(SegLeft, TextH - 1, SegLeft + SegW, TextH - 1);
-+        end;
-+        Inc(SegLeft, SegW);
-+      end;
-+    end;
-+    // JPSupport: cursor position within the composing (preedit) text,
-+    // reported by Fcitx5/Mozc via Qt's Cursor attribute - moves as the
-+    // user adjusts bunsetsu (segment) boundaries with Shift+Left/Right.
-+    // A plain, slightly-thick line in the text color is enough since
-+    // SynEdit's own caret is hidden while composing (see WMImeSetPreedit)
-+    // and no longer visually competes with it.
-+    if FPreeditInfo.CursorVisible and (FPreeditInfo.CursorPos >= 0) and
-+       (FPreeditInfo.CursorPos <= Length(FPreeditInfo.Text)) then
-+    begin
-+      CursorX := TextWidth(Copy(FPreeditInfo.Text, 1, FPreeditInfo.CursorPos));
-+      Pen.Color := Font.Color;
-+      Pen.Width := 2;
-+      Line(CursorX, 0, CursorX, TextH);
-+      Pen.Width := 1;
-+    end;
++    Inc(Result);
++    while (Result < Length(CWidth)) and ((CWidth[Result] and PCWMask) = 0) do
++      Inc(Result);
++    Dec(AChars);
 +  end;
++  Result := Result - AStart + AChars;
++end;
++
++// Inserts S as real text at FImeBlockSelection, with Undo/Redo locked so
++// this temporary, not-yet-committed text never shows up as an Undo step -
++// same approach as LazSynImeFull.SetImeTempText (lazsynimm.pas).
++procedure LazSynImeQt.SetImeTempText(const S: String);
++var
++  P1, P2: TPoint;
++begin
++  P1 := FImeBlockSelection.FirstLineBytePos;
++  ViewedTextBuffer.UndoList.Lock;
++  ViewedTextBuffer.RedoList.Lock;
++  FImeBlockSelection.SelText := S;
++  ViewedTextBuffer.UndoList.Unlock;
++  ViewedTextBuffer.RedoList.Unlock;
++  P2 := FImeBlockSelection.FirstLineBytePos;
++  FImeBlockSelection.StartLineBytePos := P1;
++  FImeBlockSelection.EndLineBytePos := P2;
++end;
++
++procedure LazSynImeQt.WMImeQuery(var Msg: TMessage);
++var
++  P: PPoint;
++begin
++  // Answers the existing LM_IM_QUERY (see TQtWidget.SlotInputMethodQuery,
++  // lcl/interfaces/qt5+qt6/qtwidgets.pas): just the caret's pixel
++  // position. Qt itself builds the candidate-window rectangle from this
++  // point, so there is no caret-width guesswork on our side.
++  P := PPoint(Msg.LParam);
++  if P = nil then
++    Exit;
++  P^.X := FriendEdit.CaretXPix;
++  P^.Y := FriendEdit.CaretYPix;
++  Msg.Result := 1;
 +end;
 +
 +procedure LazSynImeQt.WMImeSetPreedit(var Msg: TMessage);
 +var
 +  Info: PIMEPreeditInfo;
-+  TextW, TextH: Integer;
++  Utf8Text: String;
++  i, FocStart, FocEnd, X: Integer;
++  HasFocus: Boolean;
++  P: TPoint;
 +begin
 +  Info := PIMEPreeditInfo(Msg.LParam);
 +  if Info = nil then
 +    Exit;
-+  EnsurePreeditBox;
 +  FPreeditInfo := Info^;
-+  if Length(FPreeditInfo.Text) = 0 then
++  Utf8Text := UTF8Encode(FPreeditInfo.Text);
++
++  if Utf8Text = '' then
 +  begin
-+    FPreeditBox.Visible := False;
-+    // JPSupport: composition ended - restore SynEdit's own (blinking)
-+    // caret, which we hid while composing (see below).
-+    ScreenCaret.Visible := not (eoNoCaret in FriendEdit.Options);
++    // Composition ended (committed or cancelled): drop the temporary
++    // text and collapse the focused-segment range to nothing.
++    SetImeTempText('');
++    if FComposing then
++      CaretObj.LineBytePos := FImeBlockSelection.StartLineBytePos;
++    FImeFocusedSelection.StartLineBytePos := FImeBlockSelection.StartLineBytePos;
++    FImeFocusedSelection.EndLineBytePos := FImeBlockSelection.StartLineBytePos;
++    FComposing := False;
++    Msg.Result := 1;
++    Exit;
++  end;
++
++  // Starting a new composition (previous call had empty text, or this is
++  // the very first one): anchor the block at the real caret position -
++  // otherwise FImeBlockSelection stays wherever it last was (its
++  // just-created default, (1,1), the first time), and the temporary text
++  // would be inserted there instead of where the user is actually typing.
++  if not FComposing then
++  begin
++    FImeBlockSelection.StartLineBytePos := CaretObj.LineBytePos;
++    FImeBlockSelection.EndLineBytePos := CaretObj.LineBytePos;
++    FComposing := True;
++  end;
++
++  SetImeTempText(Utf8Text);
++
++  // Merge all Focused segments into one range (normally there is exactly
++  // one focused bunsetsu, but merge defensively if more are reported) -
++  // same idea as the Windows reference merging ATTR_TARGET_CONVERTED runs.
++  HasFocus := False;
++  FocStart := 0;
++  FocEnd := 0;
++  for i := 0 to FPreeditInfo.SegmentCount - 1 do
++  begin
++    if not FPreeditInfo.Segments[i].Focused then
++      Continue;
++    if (FPreeditInfo.Segments[i].Start < 0) or (FPreeditInfo.Segments[i].Length <= 0) then
++      Continue;
++    if not HasFocus then
++    begin
++      FocStart := FPreeditInfo.Segments[i].Start;
++      FocEnd := FocStart + FPreeditInfo.Segments[i].Length;
++      HasFocus := True;
++    end
++    else
++    begin
++      if FPreeditInfo.Segments[i].Start < FocStart then
++        FocStart := FPreeditInfo.Segments[i].Start;
++      if FPreeditInfo.Segments[i].Start + FPreeditInfo.Segments[i].Length > FocEnd then
++        FocEnd := FPreeditInfo.Segments[i].Start + FPreeditInfo.Segments[i].Length;
++    end;
++  end;
++
++  X := FImeBlockSelection.StartBytePos;
++  if HasFocus then
++  begin
++    P := FImeBlockSelection.StartLineBytePos;
++    P.X := X + CharToByte(X, FocStart);
++    FImeFocusedSelection.StartLineBytePos := P;
++    P.X := X + CharToByte(X, FocEnd);
++    FImeFocusedSelection.EndLineBytePos := P;
 +  end
 +  else
 +  begin
-+    // JPSupport: while composing, hide SynEdit's real caret. Otherwise it
-+    // keeps blinking, unmoving, at the position where composition
-+    // started, which looks like "the cursor is stuck" even though our
-+    // own preedit-internal cursor line (above) correctly follows
-+    // bunsetsu/segment navigation - the two carets were simply competing
-+    // for attention, and the real one (blinking) is far more prominent.
-+    ScreenCaret.Visible := False;
-+    FPreeditBox.Canvas.Font := FriendEdit.Font;
-+    TextW := FPreeditBox.Canvas.TextWidth(FPreeditInfo.Text);
-+    TextH := FPreeditBox.Canvas.TextHeight(FPreeditInfo.Text);
-+    // +2 extra pixels of height to fit the focused-segment underline,
-+    // which is drawn a couple pixels below the text baseline.
-+    FPreeditBox.SetBounds(FriendEdit.CaretXPix, FriendEdit.CaretYPix, TextW + 2, TextH + 3);
-+    FPreeditBox.Visible := True;
-+    FPreeditBox.Invalidate;
++    FImeFocusedSelection.StartLineBytePos := FImeBlockSelection.StartLineBytePos;
++    FImeFocusedSelection.EndLineBytePos := FImeBlockSelection.StartLineBytePos;
 +  end;
-+  Msg.Result := 1; // acknowledge: this control handles preedit itself
++
++  // Move the real caret to the IME-reported cursor position within the
++  // composing text - reuses SynEdit's own (blinking) caret instead of
++  // hiding it behind a custom-painted one.
++  if FPreeditInfo.CursorVisible and (FPreeditInfo.CursorPos >= 0) then
++    CaretObj.CharPos := ViewedTextBuffer.LogicalToPhysicalPos(
++      Point(X + CharToByte(X, FPreeditInfo.CursorPos), FImeBlockSelection.StartLinePos)).x;
++
++  Msg.Result := 1;
 +end;
 +
 +end.
 diff --git a/components/synedit/synedit.pp b/components/synedit/synedit.pp
-index 9a35faaf8d..2d526a0f5f 100644
+index 072f589b06..ce389a9ebe 100644
 --- a/components/synedit/synedit.pp
 +++ b/components/synedit/synedit.pp
 @@ -54,6 +54,17 @@ unit SynEdit;
@@ -259,28 +302,18 @@ index 9a35faaf8d..2d526a0f5f 100644
    {$IFDEF USE_UTF8BIDI_LCL}
    FreeBIDI, utf8bidi,
    {$ENDIF}
-@@ -936,6 +950,20 @@ type
+@@ -994,6 +1008,10 @@ type
      // Caret
      function CaretXPix: Integer; override;
      function CaretYPix: Integer; override;
-+    // JPSupport (Qt5): answers a caret/cursor-rectangle query sent by
-+    // TQtWidget.SlotInputMethodQuery (lcl/interfaces/qt5/qtwidgets.pas).
-+    // TQtWidget is a generic LCL-layer class that must not depend on the
-+    // SynEdit package, so it cannot cast LCLObject to TCustomSynEdit and
-+    // read CaretXPix/CaretYPix directly; instead it dispatches this
-+    // message to whatever control has focus, and this handler (present
-+    // only on TCustomSynEdit) fills in the TRect passed via Message.LParam.
-+    procedure WMImeQueryCaretPos(var Message: TMessage); message LM_IM_QUERY_CARET_POS;
-+    // JPSupport (Qt5): receives the current IME preedit (composition,
-+    // with bunsetsu/segment and cursor info) from TQtWidget.SlotInputMethod,
-+    // so this control can render it itself (see LM_IM_SET_PREEDIT comment
-+    // in lmessages.pp for why this is necessary for a custom-painted
-+    // control like TSynEdit).
++    // Qt-only: answers the existing LM_IM_QUERY with the caret point; see LazSynImeQt.WMImeQuery.
++    procedure WMImeQuery(var Message: TMessage); message LM_IM_QUERY;
++    // Qt-only: current IME preedit (composition) text; see LazSynImeQt.WMImeSetPreedit.
 +    procedure WMImeSetPreedit(var Message: TMessage); message LM_IM_SET_PREEDIT;
      procedure EnsureCursorPosVisible;
      procedure MoveCaretToVisibleArea;
      procedure MoveCaretIgnoreEOL(const NewCaret: TPoint);
-@@ -2402,6 +2430,10 @@ begin
+@@ -2608,6 +2626,10 @@ begin
    FImeHandler := LazSynImeGtk2 .Create(Self);
    FImeHandler.InvalidateLinesMethod := @InvalidateLines;
    {$ENDIF}
@@ -289,28 +322,28 @@ index 9a35faaf8d..2d526a0f5f 100644
 +  FImeHandler.InvalidateLinesMethod := @InvalidateLines;
 +  {$ENDIF}
  
-   fFontDummy.Name := SynDefaultFontName;
-   fFontDummy.Height := SynDefaultFontHeight;
-@@ -2813,6 +2845,22 @@ begin
-   Result := ScreenXYToPixels(p).Y;
+   fSynTextFont.Style := [];
+   FLastSetFontSize := fSynTextFont.Height;
+@@ -3301,6 +3323,22 @@ begin
  end;
+ {$ENDIF}
  
-+procedure TCustomSynEdit.WMImeQueryCaretPos(var Message: TMessage);
++{$IFDEF QtIME}
++procedure TCustomSynEdit.WMImeQuery(var Message: TMessage);
 +begin
-+  // JPSupport (Qt5/Qt6): thin forwarder to the IME handler class, matching
-+  // the pattern already used for WMImeComposition etc. on other platforms
-+  // (e.g. GTK2's GTK_IMComposition). All the actual logic lives in
-+  // LazSynImeQt (lazsynqtimm.pas).
++  // Qt-only: answers the existing LM_IM_QUERY with the caret point; see LazSynImeQt.WMImeQuery.
 +  if FImeHandler <> nil then
-+    FImeHandler.WMImeQueryCaretPos(Message);
++    FImeHandler.WMImeQuery(Message);
 +end;
 +
 +procedure TCustomSynEdit.WMImeSetPreedit(var Message: TMessage);
 +begin
++  // Qt-only: current IME preedit (composition) text; see LazSynImeQt.WMImeSetPreedit.
 +  if FImeHandler <> nil then
 +    FImeHandler.WMImeSetPreedit(Message);
 +end;
++{$ENDIF}
 +
- procedure TCustomSynEdit.FontChanged(Sender: TObject);
- begin // TODO: inherited ?
-   FPaintArea.ForegroundColor := Font.Color;
+ procedure TCustomSynEdit.InvalidateGutter;
+ begin
+   InvalidateGutterLines(-1, -1);

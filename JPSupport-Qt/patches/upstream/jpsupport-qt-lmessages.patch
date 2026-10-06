@@ -1,0 +1,57 @@
+# 002
+JPSupport-Qt: LCL messages for IME preedit (shared by the Qt5/Qt6 widgetsets)
+
+Against: Lazarus main (generated from e5ece2347d, 2026-10-04)
+Apply:   git apply jpsupport-qt-lmessages.patch   (or: patch -p1 < ...)
+
+lcl/lmessages.pp
+    New LM_IM_SET_PREEDIT and the TIMEPreeditSegment / TIMEPreeditInfo
+    records, used to hand the IME preedit text with segment and cursor
+    information to the focused control. The existing LM_IM_QUERY is
+    reused for the candidate-window position query; no other existing
+    symbol is changed.
+
+diff --git a/lcl/lmessages.pp b/lcl/lmessages.pp
+index 2d5a754f1b..a7fed1a5e6 100644
+--- a/lcl/lmessages.pp
++++ b/lcl/lmessages.pp
+@@ -101,6 +101,12 @@ const
+   LM_UNKNOWN        = LM_INTERFACELAST + 1;
+   LM_IM_COMPOSITION = LM_USER + $FFF0; // gtk IM
+   LM_IM_QUERY       = LM_IM_COMPOSITION + 1;
++  // Qt-only (no existing upstream equivalent): delivers the current IME
++  // preedit (composition-in-progress) text, with segment/cursor info, to
++  // the focused control so it can render it itself (custom-painted
++  // controls like TSynEdit do not get Qt native preedit overlay painting).
++  // LParam points at a TIMEPreeditInfo record (below).
++  LM_IM_SET_PREEDIT = LM_USER + $FFEE;
+ 
+   // GTK IM Flags
+   GTK_IM_FLAG_START       = 1;
+@@ -268,6 +274,26 @@ const
+ type
+   { LCL Messages }
+ 
++  // Qt-only: describes one bunsetsu (segment) of an IME preedit string,
++  // so a control can render segments differently (e.g. the
++  // currently-focused segment highlighted, others just underlined).
++  TIMEPreeditSegment = record
++    Start, Length: Integer;
++    Focused: Boolean;
++    Bold: Boolean;
++  end;
++  // Fixed-size array (not dynamic) to keep the LM_IM_SET_PREEDIT payload
++  // a simple record passable by pointer across the message boundary.
++  TIMEPreeditInfo = record
++    Text: WideString;
++    SegmentCount: Integer;
++    Segments: array[0..31] of TIMEPreeditSegment;
++    CursorPos: Integer;
++    CursorVisible: Boolean;
++  end;
++  PIMEPreeditInfo = ^TIMEPreeditInfo;
++
++
+   TLMDrawItems = record
+     Msg: Cardinal;
+ {$ifdef cpu64}

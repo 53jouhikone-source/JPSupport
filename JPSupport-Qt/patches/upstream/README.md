@@ -26,3 +26,18 @@ order.
   only. Posted for Martin_fr's review of the SynEdit-side design;
   does not include the earlier `lmessages.pp` patch or any of the
   Qt5/Qt6 cbindings changes.
+
+## Update 2026-10-07 (supersedes the file list above)
+
+The three files below were regenerated against Lazarus main
+(e5ece2347d, 2026-10-04) after the TPaintBox overlay was replaced by
+real-text insertion (the same approach as LazSynImeFull on Windows).
+They are still review snapshots, not meant to be applied standalone.
+
+- `jpsupport-qt-lmessages.patch` - `lcl/lmessages.pp` only.
+- `jpsupport-qt-lazsynime-refactor.patch` - `lazsynimmbase.pas`, the new
+  `lazsynqtimm.pas`, `synedit.pp` (SynEdit side).
+- `jpsupport-qt-qt6-bindings.patch` - Qt6 cbindings, `qt62.pas`,
+  `qtwidgets.pas` (Qt6 side).
+
+The Qt5 widgetset side is not ported yet.
