@@ -40,4 +40,9 @@ They are still review snapshots, not meant to be applied standalone.
 - `jpsupport-qt-qt6-bindings.patch` - Qt6 cbindings, `qt62.pas`,
   `qtwidgets.pas` (Qt6 side).
 
-The Qt5 widgetset side is not ported yet.
+The Qt5 widgetset side is ported (see the Qt5 section below).
+
+## Qt5 bindings (added 2026-10-07)
+
+- jpsupport-qt-qt5-bindings.patch: the same change as jpsupport-qt-qt6-bindings.patch for the Qt5 widgetset
+  (qevent_c.cpp/.h, qt56.pas, qtwidgets.pas). Needs libQt5Pas rebuilt. Tested on Debian arm64 (Qt 5.15, fcitx5 + Mozc).
