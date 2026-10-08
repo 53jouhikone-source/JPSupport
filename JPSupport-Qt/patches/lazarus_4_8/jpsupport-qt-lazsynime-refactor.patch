@@ -28,7 +28,7 @@ index 7972e464bc..669804325c 100644
  begin
 diff --git a/components/synedit/lazsynqtimm.pas b/components/synedit/lazsynqtimm.pas
 new file mode 100644
-index 0000000000..01fce3bfac
+index 0000000000..48d225ded1
 --- /dev/null
 +++ b/components/synedit/lazsynqtimm.pas
 @@ -0,0 +1,238 @@
@@ -41,7 +41,7 @@ index 0000000000..01fce3bfac
 +uses
 +  Classes, SysUtils, Types, Graphics, LCLType, LMessages, Messages,
 +  LazSynIMMBase, SynEditMiscClasses, SynEditPointClasses, SynEditMarkupSelection,
-+  SynEditMarkup, LazSynEditText, LazEditTextAttributes;
++  SynEditMarkup, LazSynEditText, SynEditTypes;
 +
 +type
 +  { LazSynImeQt }
@@ -271,7 +271,7 @@ index 0000000000..01fce3bfac
 +
 +end.
 diff --git a/components/synedit/synedit.pp b/components/synedit/synedit.pp
-index 072f589b06..4a72fac4c4 100644
+index 9a35faaf8d..62c0b662c2 100644
 --- a/components/synedit/synedit.pp
 +++ b/components/synedit/synedit.pp
 @@ -54,6 +54,17 @@ unit SynEdit;
@@ -302,7 +302,7 @@ index 072f589b06..4a72fac4c4 100644
    {$IFDEF USE_UTF8BIDI_LCL}
    FreeBIDI, utf8bidi,
    {$ENDIF}
-@@ -994,6 +1008,12 @@ type
+@@ -936,6 +950,12 @@ type
      // Caret
      function CaretXPix: Integer; override;
      function CaretYPix: Integer; override;
@@ -315,7 +315,7 @@ index 072f589b06..4a72fac4c4 100644
      procedure EnsureCursorPosVisible;
      procedure MoveCaretToVisibleArea;
      procedure MoveCaretIgnoreEOL(const NewCaret: TPoint);
-@@ -2608,6 +2628,10 @@ begin
+@@ -2402,6 +2422,10 @@ begin
    FImeHandler := LazSynImeGtk2 .Create(Self);
    FImeHandler.InvalidateLinesMethod := @InvalidateLines;
    {$ENDIF}
@@ -324,9 +324,9 @@ index 072f589b06..4a72fac4c4 100644
 +  FImeHandler.InvalidateLinesMethod := @InvalidateLines;
 +  {$ENDIF}
  
-   fSynTextFont.Style := [];
-   FLastSetFontSize := fSynTextFont.Height;
-@@ -3301,6 +3325,22 @@ begin
+   fFontDummy.Name := SynDefaultFontName;
+   fFontDummy.Height := SynDefaultFontHeight;
+@@ -3023,6 +3047,22 @@ begin
  end;
  {$ENDIF}
  

@@ -1,0 +1,405 @@
+diff --git a/lcl/interfaces/qt5/cbindings/src/qevent_c.cpp b/lcl/interfaces/qt5/cbindings/src/qevent_c.cpp
+index b54e78ec8b..3651f9f49f 100644
+--- a/lcl/interfaces/qt5/cbindings/src/qevent_c.cpp
++++ b/lcl/interfaces/qt5/cbindings/src/qevent_c.cpp
+@@ -707,6 +707,64 @@ QInputMethodEventH QInputMethodEvent_Create3(const QInputMethodEventH other)
+ 	return (QInputMethodEventH) new QInputMethodEvent(*(const QInputMethodEvent*)other);
+ }
+ 
++int QInputMethodEvent_attributeCount(QInputMethodEventH handle)
++{
++	return ((QInputMethodEvent *)handle)->attributes().count();
++}
++
++int QInputMethodEvent_attributeType(QInputMethodEventH handle, int index)
++{
++	const QList<QInputMethodEvent::Attribute> &attrs = ((QInputMethodEvent *)handle)->attributes();
++	if (index < 0 || index >= attrs.count())
++		return -1;
++	return (int) attrs.at(index).type;
++}
++
++int QInputMethodEvent_attributeStart(QInputMethodEventH handle, int index)
++{
++	const QList<QInputMethodEvent::Attribute> &attrs = ((QInputMethodEvent *)handle)->attributes();
++	if (index < 0 || index >= attrs.count())
++		return 0;
++	return attrs.at(index).start;
++}
++
++int QInputMethodEvent_attributeLength(QInputMethodEventH handle, int index)
++{
++	const QList<QInputMethodEvent::Attribute> &attrs = ((QInputMethodEvent *)handle)->attributes();
++	if (index < 0 || index >= attrs.count())
++		return 0;
++	return attrs.at(index).length;
++}
++
++int QInputMethodEvent_attributeBackgroundColor(QInputMethodEventH handle, int index)
++{
++	const QList<QInputMethodEvent::Attribute> &attrs = ((QInputMethodEvent *)handle)->attributes();
++	if (index < 0 || index >= attrs.count())
++		return -1;
++	const QInputMethodEvent::Attribute &attr = attrs.at(index);
++	if (attr.type != QInputMethodEvent::TextFormat)
++		return -1;
++	QTextFormat fmt = attr.value.value<QTextFormat>();
++	QBrush bg = fmt.background();
++	if (bg.style() == Qt::NoBrush)
++		return -1;
++	QColor c = bg.color();
++	return (c.alpha() << 24) | (c.red() << 16) | (c.green() << 8) | c.blue();
++}
++
++int QInputMethodEvent_attributeBold(QInputMethodEventH handle, int index)
++{
++	const QList<QInputMethodEvent::Attribute> &attrs = ((QInputMethodEvent *)handle)->attributes();
++	if (index < 0 || index >= attrs.count())
++		return -1;
++	const QInputMethodEvent::Attribute &attr = attrs.at(index);
++	if (attr.type != QInputMethodEvent::TextFormat)
++		return -1;
++	QTextFormat fmt = attr.value.value<QTextFormat>();
++	QTextCharFormat cfmt = fmt.toCharFormat();
++	return cfmt.font().bold() ? 1 : 0;
++}
++
+ QInputMethodQueryEventH QInputMethodQueryEvent_Create(unsigned int queries)
+ {
+ 	return (QInputMethodQueryEventH) new QInputMethodQueryEvent((Qt::InputMethodQueries)queries);
+diff --git a/lcl/interfaces/qt5/cbindings/src/qevent_c.h b/lcl/interfaces/qt5/cbindings/src/qevent_c.h
+index 79abf6f919..883b7eb107 100644
+--- a/lcl/interfaces/qt5/cbindings/src/qevent_c.h
++++ b/lcl/interfaces/qt5/cbindings/src/qevent_c.h
+@@ -151,6 +151,14 @@ C_EXPORT void QInputMethodEvent_commitString(QInputMethodEventH handle, PWideStr
+ C_EXPORT int QInputMethodEvent_replacementStart(QInputMethodEventH handle);
+ C_EXPORT int QInputMethodEvent_replacementLength(QInputMethodEventH handle);
+ C_EXPORT QInputMethodEventH QInputMethodEvent_Create3(const QInputMethodEventH other);
++// JPSupport (Qt5/SynEdit): segment (bunsetsu) info for the preedit string,
++// read from QInputMethodEvent::attributes(). Same accessors as the Qt6 cbindings.
++C_EXPORT int QInputMethodEvent_attributeCount(QInputMethodEventH handle);
++C_EXPORT int QInputMethodEvent_attributeType(QInputMethodEventH handle, int index);
++C_EXPORT int QInputMethodEvent_attributeStart(QInputMethodEventH handle, int index);
++C_EXPORT int QInputMethodEvent_attributeLength(QInputMethodEventH handle, int index);
++C_EXPORT int QInputMethodEvent_attributeBackgroundColor(QInputMethodEventH handle, int index);
++C_EXPORT int QInputMethodEvent_attributeBold(QInputMethodEventH handle, int index);
+ C_EXPORT QInputMethodQueryEventH QInputMethodQueryEvent_Create(unsigned int queries);
+ C_EXPORT void QInputMethodQueryEvent_Destroy(QInputMethodQueryEventH handle);
+ C_EXPORT unsigned int QInputMethodQueryEvent_queries(QInputMethodQueryEventH handle);
+diff --git a/lcl/interfaces/qt5/qt56.pas b/lcl/interfaces/qt5/qt56.pas
+index 52f709e5c0..4d858170f0 100644
+--- a/lcl/interfaces/qt5/qt56.pas
++++ b/lcl/interfaces/qt5/qt56.pas
+@@ -5264,6 +5264,14 @@ procedure QInputMethodEvent_preeditString(handle: QInputMethodEventH; retval: PW
+ procedure QInputMethodEvent_commitString(handle: QInputMethodEventH; retval: PWideString); cdecl; external Qt5PasLib name 'QInputMethodEvent_commitString';
+ function QInputMethodEvent_replacementStart(handle: QInputMethodEventH): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_replacementStart';
+ function QInputMethodEvent_replacementLength(handle: QInputMethodEventH): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_replacementLength';
++// JPSupport (Qt6/SynEdit): segment (bunsetsu) attribute accessors. Mirrors
++// the Qt5 binding of the same name in qt56.pas.
++function QInputMethodEvent_attributeCount(handle: QInputMethodEventH): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeCount';
++function QInputMethodEvent_attributeType(handle: QInputMethodEventH; index: Integer): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeType';
++function QInputMethodEvent_attributeStart(handle: QInputMethodEventH; index: Integer): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeStart';
++function QInputMethodEvent_attributeLength(handle: QInputMethodEventH; index: Integer): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeLength';
++function QInputMethodEvent_attributeBackgroundColor(handle: QInputMethodEventH; index: Integer): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeBackgroundColor';
++function QInputMethodEvent_attributeBold(handle: QInputMethodEventH; index: Integer): Integer; cdecl; external Qt5PasLib name 'QInputMethodEvent_attributeBold';
+ function QInputMethodEvent_Create(other: QInputMethodEventH): QInputMethodEventH; cdecl; external Qt5PasLib name 'QInputMethodEvent_Create3';
+ 
+ function QInputMethodQueryEvent_Create(queries: QtInputMethodQueries): QInputMethodQueryEventH; cdecl; external Qt5PasLib name 'QInputMethodQueryEvent_Create';
+diff --git a/lcl/interfaces/qt5/qtwidgets.pas b/lcl/interfaces/qt5/qtwidgets.pas
+index 5adf4f34d9..6a284e7578 100644
+--- a/lcl/interfaces/qt5/qtwidgets.pas
++++ b/lcl/interfaces/qt5/qtwidgets.pas
+@@ -126,6 +126,10 @@ type
+     FHasCaret: Boolean;
+     FLastCaretPos: TQtPoint;
+     FHasPaint: Boolean;
++    { Input Method }
++    FPreEditStr: WideString;
++    FCommitStr: WideString;
++    FIMPreedit: Boolean;
+     FOwner: TQtWidget;
+ 
+     FWidgetColorRole: QPaletteColorRole;
+@@ -209,6 +213,7 @@ type
+     function SlotHover(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
+     function SlotKey(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
+     function SlotInputMethod(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
++    function SlotInputMethodQuery(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
+     function SlotMouse(Sender: QObjectH; Event: QEventH): Boolean; virtual; cdecl;
+     procedure SlotNCMouse(Sender: QObjectH; Event: QEventH); cdecl;
+     function SlotMouseEnter(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
+@@ -469,6 +474,7 @@ type
+   private
+     FCornerWidget: TQtWidget;
+     FViewPortWidget: TQtViewPort;
++    FIMCaretPos: TPoint;
+   protected
+     function CreateWidget(const AParams: TCreateParams):QWidgetH; override;
+     function ProcessArrowKeys: Boolean; override;
+@@ -492,6 +498,8 @@ type
+     procedure setVisible(AVisible: Boolean); override;
+     procedure viewportNeeded; virtual;
+     procedure viewportDelete; virtual;
++    { Input Method Tweak }
++    property IMCaretPos: TPoint read FIMCaretPos write FIMCaretPos;
+   end;
+   
+   { TQtViewPort }
+@@ -2097,6 +2105,7 @@ begin
+   LCLObject := AWinControl;
+   FKeysToEat := [VK_TAB, VK_RETURN, VK_ESCAPE];
+   FHasPaint := False;
++  FIMPreedit := False;
+ 
+   FParams := AParams;
+   InitializeWidget;
+@@ -2762,10 +2771,8 @@ begin
+ 
+         //Dead keys (used to compose chars like "ó" by pressing 'o)  do not trigger EventKeyPress
+         //and therefore no KeyDown,Utf8KeyPress,KeyPress
+-        QEventInputMethod:
+-          begin
+-            Result := SlotInputMethod(Sender, Event);
+-          end;
++        QEventInputMethod:      Result := SlotInputMethod(Sender, Event);
++        QEventInputMethodQuery: Result := SlotInputMethodQuery(Sender, Event);
+ 
+         QEventMouseButtonPress,
+         QEventMouseButtonRelease,
+@@ -3679,36 +3686,207 @@ end;
+ function TQtWidget.SlotInputMethod(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
+ var
+   InputEvent: QInputMethodEventH;
+-  WStr: WideString;
++  WStr, temps: WideString;
+   UnicodeChar: Cardinal;
+-  UnicodeOutLen: integer;
++  i: integer;
+   KeyEvent: QKeyEventH;
++  Msg: TLMessage;
++  // JPSupport (Qt6/SynEdit): preedit segment/cursor forwarding - see the
++  // block after the existing "{ preedit }" section below.
++  PreeditInfo: TIMEPreeditInfo;
++  PreeditMsg: TLMessage;
++  AttrCount, AttrIdx: Integer;
++  SegAttrStart, SegAttrLength: Integer;
++  SegAttrFocused, SegAttrBold: Boolean;
++  SegFoundIdx, SegExistingIdx: Integer;
++  WasComposing: Boolean;
+ begin
+-  Result := True;
++  Result := False;
+   if not (QEvent_type(Event) = QEventInputMethod) then Exit;
+   {$ifdef VerboseQt}
+     DebugLn('TQtWidget.SlotInputMethod ', dbgsname(LCLObject));
+   {$endif}
+   InputEvent := QInputMethodEventH(Event);
+-  QInputMethodEvent_commitString(InputEvent, @WStr);
+-  UnicodeChar := UTF8CodepointToUnicode(PChar(WStr), UnicodeOutLen);
+-  {$IFDEF VerboseQtKeys}
+-  writeln('> TQtWidget.SlotInputMethod ',dbgsname(LCLObject),' event=QEventInputMethod:');
+-  writeln('   commmitString ',WStr,' len ',length(WStr),' UnicodeChar ',UnicodeChar,
+-    ' UnicodeLen ',UnicodeOutLen);
+-  writeln('   sending QEventKeyPress');
+-  {$ENDIF}
++  FPreEditStr:='';
++  FCommitStr:='';
++  QInputMethodEvent_commitString(InputEvent, @FCommitStr);
++  QInputMethodEvent_preeditString(InputEvent, @FPreEditStr);
++  WStr:=FCommitStr;
++  WasComposing := FIMPreedit;
++  { commit }
++  if FCommitStr<>'' then
++  begin
++    if CanSendLCLMessage then
++    begin
++      Msg.Msg:=LM_IM_COMPOSITION;
++      Msg.WParam:=GTK_IM_FLAG_COMMIT or GTK_IM_FLAG_END;
++      Msg.LParam:=LPARAM(@FCommitStr);
++      Result:=DeliverMessage(Msg)<>0;
++    end;
++    FIMPreedit:=False;
++  end;
++  { preedit }
++  if CanSendLCLMessage then
++  begin
++    Msg.Msg:=LM_IM_COMPOSITION;
++    Msg.WParam:=GTK_IM_FLAG_PREEDIT;
++    if not FIMPreedit then
++      Msg.WParam:=Msg.WParam or GTK_IM_FLAG_START
++      else
++        Msg.WParam:=Msg.WParam or GTK_IM_FLAG_REPLACE;
++    Msg.LParam:=LPARAM(@FPreEditStr);
++    { Don't update result }
++    DeliverMessage(Msg);
++  end;
++  FIMPreedit:=FPreEditStr<>'';
++  // JPSupport (Qt6/SynEdit): if we're about to insert committed text while
++  // a preedit block from the PREVIOUS event is still sitting in the real
++  // buffer (as temporary text - see LM_IM_SET_PREEDIT/SetImeTempText),
++  // clear it first. Otherwise the commit's synthetic key presses below
++  // land next to/inside that stale temporary text instead of a clean
++  // caret position, producing garbled/duplicated characters.
++  if (WStr<>'') and WasComposing and (LCLObject <> nil) and (LCLObject is TControl) then
++  begin
++    FillChar(PreeditInfo, SizeOf(PreeditInfo), 0);
++    FillChar(PreeditMsg, SizeOf(PreeditMsg), 0);
++    PreeditMsg.Msg := LM_IM_SET_PREEDIT;
++    PreeditMsg.LParam := PtrInt(@PreeditInfo);
++    TControl(LCLObject).Dispatch(PreeditMsg);
++  end;
++  { commit to keyinput }
++  if WStr<>'' then
++  begin
++    {$IFDEF VerboseQtKeys}
++    writeln('> TQtWidget.SlotInputMethod ',dbgsname(LCLObject),' event=QEventInputMethod:');
++    writeln('   commmitString ',WStr,' len ',length(WStr),' UnicodeChar ',UnicodeChar,
++      ' UnicodeLen ',UnicodeOutLen);
++    writeln('   sending QEventKeyPress');
++    {$ENDIF}
++    i:=1;
++    while i<=Length(WStr) do
++    begin
++      if (i<Length(WStr)) and
++        (Word(WStr[i]) >= $D800) and (Word(WStr[i]) <= $DBFF) and
++        (Word(WStr[i+1]) >= $DC00) and (Word(WStr[i+1]) <= $DFFF) then
++      begin
++        UnicodeChar := $10000 + ((Word(WStr[i]) - $D800) shl 10) + (Word(WStr[i+1]) - $DC00);
++        temps:=Copy(WStr, i, 2);
++        inc(i, 2);
++      end else
++      begin
++        UnicodeChar := PWord(@WStr[i])^;
++        temps:=WStr[i];
++        inc(i);
++      end;
++      KeyEvent := QKeyEvent_create(QEventKeyPress, PtrInt(UnicodeChar), QGUIApplication_keyboardModifiers, @temps);
++      try
++        // do not send it to queue, just pass it to SlotKey
++        Result := SlotKey(Sender, KeyEvent);
++      finally
++        QKeyEvent_destroy(KeyEvent);
++      end;
++      {$IFDEF VerboseQtKeys}
++      writeln('< TQtWidget.SlotInputMethod End: ',dbgsname(LCLObject),' event=QEventInputMethod, sent QEventKeyPress');
++      {$ENDIF}
++    end;
++  end;
++  // JPSupport (Qt6/SynEdit): forward the preedit string's segments
++  // (bunsetsu) and cursor position to the control itself via
++  // LM_IM_SET_PREEDIT - needed for custom-painted controls such as
++  // TSynEdit, which never receive Qt's native preedit overlay (see the
++  // LM_IM_SET_PREEDIT comment in lmessages.pp). If the control does not
++  // recognize this message (e.g. TEdit/QLineEdit, which paints its own
++  // native preedit), PreeditMsg.Result simply stays 0 and nothing else
++  // changes.
++  if (LCLObject <> nil) and (LCLObject is TControl) then
++  begin
++    FillChar(PreeditInfo, SizeOf(PreeditInfo), 0);
++    PreeditInfo.Text := FPreEditStr;
++    PreeditInfo.CursorPos := -1;
++    PreeditInfo.CursorVisible := False;
++    AttrCount := QInputMethodEvent_attributeCount(InputEvent);
++    for AttrIdx := 0 to AttrCount - 1 do
++    begin
++      if QInputMethodEvent_attributeType(InputEvent, AttrIdx) = Ord(QInputMethodEventCursor) then
++      begin
++        PreeditInfo.CursorPos := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
++        PreeditInfo.CursorVisible := QInputMethodEvent_attributeLength(InputEvent, AttrIdx) <> 0;
++        Continue;
++      end;
++      if QInputMethodEvent_attributeType(InputEvent, AttrIdx) <> Ord(QInputMethodEventTextFormat) then
++        Continue;
++      SegAttrStart := QInputMethodEvent_attributeStart(InputEvent, AttrIdx);
++      SegAttrLength := QInputMethodEvent_attributeLength(InputEvent, AttrIdx);
++      SegAttrFocused := QInputMethodEvent_attributeBackgroundColor(InputEvent, AttrIdx) <> -1;
++      SegAttrBold := QInputMethodEvent_attributeBold(InputEvent, AttrIdx) = 1;
++      // JPSupport: some IMEs send more than one TextFormat attribute for
++      // the exact same [Start,Length) range (e.g. background and bold as
++      // separate attributes) rather than one merged attribute. Merge
++      // into the existing segment (OR'd, true wins) instead of adding a
++      // duplicate, which would otherwise draw that span twice.
++      SegFoundIdx := -1;
++      for SegExistingIdx := 0 to PreeditInfo.SegmentCount - 1 do
++      begin
++        if (PreeditInfo.Segments[SegExistingIdx].Start = SegAttrStart) and
++           (PreeditInfo.Segments[SegExistingIdx].Length = SegAttrLength) then
++        begin
++          SegFoundIdx := SegExistingIdx;
++          Break;
++        end;
++      end;
++      if SegFoundIdx >= 0 then
++      begin
++        PreeditInfo.Segments[SegFoundIdx].Focused := PreeditInfo.Segments[SegFoundIdx].Focused or SegAttrFocused;
++        PreeditInfo.Segments[SegFoundIdx].Bold := PreeditInfo.Segments[SegFoundIdx].Bold or SegAttrBold;
++        Continue;
++      end;
++      if PreeditInfo.SegmentCount > High(PreeditInfo.Segments) then
++        Break;
++      PreeditInfo.Segments[PreeditInfo.SegmentCount].Start := SegAttrStart;
++      PreeditInfo.Segments[PreeditInfo.SegmentCount].Length := SegAttrLength;
++      PreeditInfo.Segments[PreeditInfo.SegmentCount].Focused := SegAttrFocused;
++      PreeditInfo.Segments[PreeditInfo.SegmentCount].Bold := SegAttrBold;
++      Inc(PreeditInfo.SegmentCount);
++    end;
++    FillChar(PreeditMsg, SizeOf(PreeditMsg), 0);
++    PreeditMsg.Msg := LM_IM_SET_PREEDIT;
++    PreeditMsg.LParam := PtrInt(@PreeditInfo);
++    PreeditMsg.Result := 0;
++    TControl(LCLObject).Dispatch(PreeditMsg);
++  end;
++end;
+ 
+-  KeyEvent := QKeyEvent_create(QEventKeyPress, PtrInt(UnicodeChar), QGUIApplication_keyboardModifiers, @WStr, False, 1);
+-  try
+-    // do not send it to queue, just pass it to SlotKey
+-    Result := SlotKey(Sender, KeyEvent);
+-  finally
+-    QKeyEvent_destroy(KeyEvent);
++function TQtWidget.SlotInputMethodQuery(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
++var
++  imq: QInputMethodQueryEventH;
++  NewIMRect: TRect;
++  qrect: QVariantH;
++  x, y: Integer;
++  Msg: TLMessage;
++begin
++  Result:=False;
++  if not (QEvent_type(Event) = QEventInputMethodQuery) then Exit;
++
++  if (ClassType=TQtCustomControl) and Assigned(LCLObject) then
++  begin
++    imq:=QInputMethodQueryEventH(Event);
++    if QInputMethodQueryEvent_queries(imq) and QtImCursorRectangle<>0 then
++    begin
++      { notify caret position pointer to wincontrol }
++      Msg.Msg:=LM_IM_QUERY;
++      Msg.WParam:=0;
++      Msg.LParam:=PtrInt(@TQtCustomControl(self).IMCaretPos);
++      DeliverMessage(Msg);
++      { Set Candidate window position }
++      x:=TQtCustomControl(self).IMCaretPos.X;
++      y:=TQtCustomControl(self).IMCaretPos.Y;
++      NewIMRect:=measureText('Qj',0);
++      NewIMRect:=Rect(x,y,x+abs(NewIMRect.Right-NewIMRect.Left),abs(y+NewIMRect.Bottom-NewIMRect.Top));
++      qrect:=QVariant_Create(PRect(@NewIMRect));
++      QInputMethodQueryEvent_setValue(imq,QtImCursorRectangle,qrect);
++      Result:=True;
++    end;
+   end;
+-  {$IFDEF VerboseQtKeys}
+-  writeln('< TQtWidget.SlotInputMethod End: ',dbgsname(LCLObject),' event=QEventInputMethod, sent QEventKeyPress');
+-  {$ENDIF}
+ end;
+ 
+ {------------------------------------------------------------------------------
+@@ -18181,6 +18359,8 @@ begin
+     QWidget_setAutoFillBackground(Result, False);
+ 
+   QWidget_setAttribute(Result, QtWA_InputMethodEnabled);
++  if Assigned(LCLObject) then
++    FIMCaretPos:=Point(0,LCLObject.Height);
+ end;
+ 
+ function TQtCustomControl.ProcessArrowKeys: Boolean;
