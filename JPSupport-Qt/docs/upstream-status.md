@@ -84,6 +84,8 @@ Martin_fr氏の提案を受け、Qt5/Qt6のIME実装を`TCustomSynEdit`への直
 
 ## パッチ内訳(開発者・メンテナー向け参考情報)
 
+> **注記(2026-10-08)**: この節は、旧オーバーレイ方式(`TPaintBox`)の時点のパッチ構成を記録したものです。現在の構成は、末尾の「2026-10-08」の節を参照してください。
+
 `patches/apply_jpsupport_patches.py`が適用する変更は、以下10個の個別パッチ(Python関数)で構成されています。一般ユーザーがこの内訳を意識する必要はありません(`build_jpsupport_qt.sh`が自動的にすべて適用します)が、本家への取り込みを検討するメンテナーや、類似の改修を行いたい開発者向けに、変更範囲の全体像を記録しておきます。
 
 **共通パッチ(Qt5・Qt6両方に適用)**
@@ -154,3 +156,14 @@ Martin_fr氏の提案を受け、Qt5/Qt6のIME実装を`TCustomSynEdit`への直
 - **IBus環境では、変換候補ウィンドウがカーソル位置に追従せず画面左上に固定表示される**症状を確認。この制限自体は[`docs/verification-matrix.md`](verification-matrix.md)の「IBus環境での既知の制限」に記載済みだが、今回さらに、Qt本体側の既知の上流バグ([ibus/ibus#2391](https://github.com/ibus/ibus/issues/2391))であることを特定した。JPSupport-Qt側では修正できない
 
 以上により、**`lazarus_4_8`の動作確認済み環境に、aarch64(Raspberry Pi 4)を追加**する。詳細な検証マトリックスは[`docs/verification-matrix.md`](verification-matrix.md)を参照。
+
+## 2026-10-08: 実テキスト挿入方式への移行と、パッチ構成の変更
+
+Martin_fr氏の指摘(項目5)に沿って、`LazSynImeQt`の表示方式を、`TPaintBox`によるオーバーレイから、変換中の文字列を実際のテキストとして挿入する方式(Windows版`LazSynImeFull`と同じ考え方)へ置き換えました。Qt6・Qt5の両方で、実機(RasPi4、Qt 6.2 / Qt 5.15、fcitx5+Mozc)での5項目の確認が済んでいます。
+
+- **表示**: 変換対象の文節はエディタの選択色、それ以外の文節は破線の下線(fcitx5-qt・Mozcの慣習に合わせた)。固定の水色は廃止
+- **Qt側の送信処理**: `QInputMethodEvent`の属性を読み取るC++アクセサ(`libQt5Pas`/`libQt6Pas`)と、`TQtWidget.SlotInputMethod`からの`LM_IM_SET_PREEDIT`送信。確定前に、前回の未確定文字列を空にして送ります
+- **パッチ構成**: 変更内容ごとに4本(`lmessages`、`lazsynime-refactor`、`qt5-bindings`、`qt6-bindings`)。`patches/upstream/`はLazarus main向け(レビュー用)、`patches/lazarus_4_8/`は4.8リリース向け
+- **`apply_jpsupport_patches.py`**: 旧方式(アンカー文字列の置換)をやめ、上記のパッチ一式を`patch`で当てる方式に変更。4.8用かmain用かは自動判定し、適用済みのパッチは飛ばし、1本でも当たらなければ何も変更せずに止まります。旧スクリプトは`patches/legacy/`に保存
+- **4.8向けに必要だった追加**: `LM_IM_QUERY`の定義、`SlotInputMethodQuery`と`IMCaretPos`(mainには既にあるが4.8にはない)、`LazEditTextAttributes`の代わりに`SynEditTypes`を使うこと
+- **不具合の修正**: `synedit.pp`の`WMImeQuery`/`WMImeSetPreedit`の宣言が、`{$IFDEF QtIME}`で囲まれておらず、Qt以外のウィジェットセットでビルドが通らなかった。mainのパッチ、4.8用のパッチの両方で修正済み

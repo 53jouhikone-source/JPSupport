@@ -67,29 +67,36 @@ sudo apt-get install qt6-base-dev
 
 ## 2. パッチ適用関連
 
-### 2.1 `LM_IM_QUERY_CARET_POS`が未定義というコンパイルエラーが出る
+### 2.1 単体のパッチファイルを当てると、コンパイルエラーになる
 
-`patches/upstream/`配下の単体パッチファイル(`git diff`形式)を、クリーンな`fixes_4`チェックアウトに直接適用しようとすると、このエラーが発生することがあります。
+`patches/upstream/`や`patches/lazarus_4_8/`にあるパッチファイルを、1本だけ取り出して当てると、`LM_IM_SET_PREEDIT`が未定義などのコンパイルエラーになることがあります。
 
-**原因**: `patches/upstream/`内のファイルは、あくまで**特定の変更範囲だけを切り出した、人間によるレビュー用の差分**です(例: `jpsupport-qt-lazsynime-refactor.patch`はSynEditのリファクタリング部分のみを含み、`lmessages.pp`への`LM_IM_QUERY_CARET_POS`追加など、前提となる別のパッチが当たっている前提で作られています)。単体では完結したパッチにはなっていません。
+**原因**: パッチは変更内容ごとに4本に分かれており(`lmessages`、`lazsynime-refactor`、`qt5-bindings`、`qt6-bindings`)、互いに前提になっています。たとえば`qt5-bindings`/`qt6-bindings`は、`lmessages`が定義する`LM_IM_SET_PREEDIT`などを使うため、単体では完結しません。また、`patches/upstream/`はLazarus **main**向け、`patches/lazarus_4_8/`は**4.8リリース**向けで、対象の版が違うパッチは当たりません。
 
-**対処法**: 実際にビルド・動作確認したい場合は、単体パッチファイルではなく、必ずフルセットを適用するスクリプトを使ってください。
+**対処法**: 単体のパッチではなく、必ずスクリプトで全部をまとめて適用してください。スクリプトは、手元のソースに全部が当たるパッチ一式(4.8用かmain用か)を自動で選びます。
 
 ```bash
-python3 patches/apply_jpsupport_patches.py qt5   # または qt6、both
+cd /path/to/lazarus-src
+python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py qt5   # または qt6、both
 ```
 
 詳細は[`patches/upstream/README.md`](../patches/upstream/README.md)にも記載しています。
 
-### 2.2 `apply_jpsupport_patches.py`を再実行すると重複挿入エラーになる
+### 2.2 `apply_jpsupport_patches.py`が「no patch set applies cleanly」で止まる
 
-`lmessages.pp`など、Qt5/Qt6共通で「常に適用される」パッチ関数を、**既にパッチ済みの状態に対してもう一度実行すると**、パッチが探しているアンカー文字列が既に変更後の内容に置き換わっているため、二重挿入や不一致でエラーになることがあります。
+スクリプトは、すでに適用済みのパッチは飛ばすので、二度実行しても問題ありません。このメッセージが出るのは、手元のソースが、どちらのパッチ一式にも合わない場合です。たとえば、次のような場合です。
+
+- 4.8でもmainでもない版(`fixes_4`など)のソースに当てようとした
+- 関係するファイル(`synedit.pp`、`qtwidgets.pas`など)を、手で書き換えてある
+- パッチの一部だけが当たった状態になっている
+
+スクリプトは、1本でも当たらなければ、何も変更せずに止まります。
 
 **対処法**:
 
-- クリーンなチェックアウトに対して一度だけ実行するのが基本です
-- Qt6専用のパッチだけを個別に当て直したい場合(共通パッチはそのままで、Qt6側のみ再適用したい場合など)は、スクリプトを丸ごと実行せず、該当する関数だけを個別に呼び出してください(`patch_qevent_c_qt6()`、`patch_qt62()`、`patch_qtwidgets_qt6()`など)
-- どちらか判断がつかない場合は、`lazarus-src`ディレクトリごと削除し、クリーンな状態から`build_jpsupport_qt.sh`を再実行するのが最も確実です
+- クリーンな`lazarus_4_8`のソースに対して実行してください
+- どう直してよいか分からない場合は、`lazarus-src`ディレクトリごと削除し、クリーンな状態から`build_jpsupport_qt.sh`を再実行するのが最も確実です
+- 旧方式(アンカー文字列の置換)のスクリプトは、`patches/legacy/`に残してあります(現在は使用しません)
 
 ---
 

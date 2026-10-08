@@ -1,48 +1,39 @@
 # upstream/ — reference patches for upstream review
 
-The files in this directory are **not meant to be applied standalone**
-to a clean Lazarus checkout. They are plain `git diff` snapshots,
-generated for human review (e.g. by Lazarus maintainers on the forum),
-showing a specific slice of the change history — not the full set of
-changes needed to build JPSupport-Qt from scratch.
+These are review snapshots for **Lazarus main**, generated for human
+review (e.g. by Lazarus maintainers on the forum). The four patches
+depend on each other (for example the Qt bindings use the messages
+defined in `jpsupport-qt-lmessages.patch`), so they are meant to be
+applied together, not one at a time.
 
-**To actually build and test JPSupport-Qt, use the full patch script
-instead:**
+A matching set for the **Lazarus 4.8 release** lives in
+`../lazarus_4_8/`.
+
+**To actually build and test JPSupport-Qt, use the script:**
 
 ```bash
-python3 patches/apply_jpsupport_patches.py qt5   # or qt6, or both
+cd /path/to/lazarus-src
+python3 /path/to/JPSupport-Qt/patches/apply_jpsupport_patches.py qt5   # or qt6, or both
 ```
 
-run against a clean Lazarus `fixes_4` checkout. The script applies
-every required change (including `lmessages.pp`, which most of the
-files in this directory assume is already patched) in the correct
-order.
+The script picks the patch set (4.8 or main) that applies completely to
+your tree, skips patches that are already applied, and changes nothing
+if any needed patch does not apply.
 
 ## Files
 
-- `jpsupport-qt-lazsynime-refactor.patch` — diff of the `LazSynIme`
-  subclass refactor (`f379582c5f` → `aa0befe860`), covering
-  `lazsynimmbase.pas`, the new `lazsynqtimm.pas`, and `synedit.pp`
-  only. Posted for Martin_fr's review of the SynEdit-side design;
-  does not include the earlier `lmessages.pp` patch or any of the
-  Qt5/Qt6 cbindings changes.
+Generated against Lazarus main (e5ece2347d, 2026-10-04) after the
+TPaintBox overlay was replaced by real-text insertion (the same
+approach as `LazSynImeFull` on Windows). Tested on Debian arm64
+(Qt 5.15 and Qt 6.2, fcitx5 + Mozc).
 
-## Update 2026-10-07 (supersedes the file list above)
-
-The three files below were regenerated against Lazarus main
-(e5ece2347d, 2026-10-04) after the TPaintBox overlay was replaced by
-real-text insertion (the same approach as LazSynImeFull on Windows).
-They are still review snapshots, not meant to be applied standalone.
-
-- `jpsupport-qt-lmessages.patch` - `lcl/lmessages.pp` only.
-- `jpsupport-qt-lazsynime-refactor.patch` - `lazsynimmbase.pas`, the new
-  `lazsynqtimm.pas`, `synedit.pp` (SynEdit side).
-- `jpsupport-qt-qt6-bindings.patch` - Qt6 cbindings, `qt62.pas`,
-  `qtwidgets.pas` (Qt6 side).
-
-The Qt5 widgetset side is ported (see the Qt5 section below).
-
-## Qt5 bindings (added 2026-10-07)
-
-- jpsupport-qt-qt5-bindings.patch: the same change as jpsupport-qt-qt6-bindings.patch for the Qt5 widgetset
-  (qevent_c.cpp/.h, qt56.pas, qtwidgets.pas). Needs libQt5Pas rebuilt. Tested on Debian arm64 (Qt 5.15, fcitx5 + Mozc).
+- `jpsupport-qt-lmessages.patch` - `lcl/lmessages.pp` only
+  (`LM_IM_SET_PREEDIT`, `TIMEPreeditInfo` and related types).
+- `jpsupport-qt-lazsynime-refactor.patch` - SynEdit side:
+  `lazsynimmbase.pas`, the new `lazsynqtimm.pas`, `synedit.pp`.
+- `jpsupport-qt-qt6-bindings.patch` - Qt6 side: cbindings
+  (`qevent_c.cpp/.h`), `qt62.pas`, `qtwidgets.pas`. Needs `libQt6Pas`
+  rebuilt.
+- `jpsupport-qt-qt5-bindings.patch` - the same change for the Qt5
+  widgetset (`qevent_c.cpp/.h`, `qt56.pas`, `qtwidgets.pas`). Needs
+  `libQt5Pas` rebuilt.
