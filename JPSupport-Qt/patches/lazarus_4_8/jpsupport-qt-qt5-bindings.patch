@@ -105,8 +105,21 @@ index 52f709e5c0..4d858170f0 100644
  function QInputMethodEvent_Create(other: QInputMethodEventH): QInputMethodEventH; cdecl; external Qt5PasLib name 'QInputMethodEvent_Create3';
  
  function QInputMethodQueryEvent_Create(queries: QtInputMethodQueries): QInputMethodQueryEventH; cdecl; external Qt5PasLib name 'QInputMethodQueryEvent_Create';
+diff --git a/lcl/interfaces/qt5/qtdefines.inc b/lcl/interfaces/qt5/qtdefines.inc
+index 63b9977dd0..5eb20edfe4 100644
+--- a/lcl/interfaces/qt5/qtdefines.inc
++++ b/lcl/interfaces/qt5/qtdefines.inc
+@@ -20,4 +20,8 @@
+   {defined on Qt side in file "qtgui-config.h"}
+   {.$DEFINE QT_NO_SESSIONMANAGER}
+   {.$DEFINE QTDIALOGSUSEHTMLTEXT} {we use plain text for dialogs - if enabled then dialogs can contain html formatted text}
++  {JPSupport-Qt: forward IME preedit segments (QInputMethodEvent attributes) to controls
++   such as TSynEdit via LM_IM_SET_PREEDIT. Requires libQtNPas built with the
++   QInputMethodEvent_attribute* accessors (cbindings/src/qevent_c.cpp).}
++  {$DEFINE useqmethodinput}
+ {$ENDIF}
 diff --git a/lcl/interfaces/qt5/qtwidgets.pas b/lcl/interfaces/qt5/qtwidgets.pas
-index 5adf4f34d9..6a284e7578 100644
+index 5adf4f34d9..26d69f1455 100644
 --- a/lcl/interfaces/qt5/qtwidgets.pas
 +++ b/lcl/interfaces/qt5/qtwidgets.pas
 @@ -126,6 +126,10 @@ type
@@ -166,7 +179,7 @@ index 5adf4f34d9..6a284e7578 100644
  
          QEventMouseButtonPress,
          QEventMouseButtonRelease,
-@@ -3679,36 +3686,207 @@ end;
+@@ -3679,36 +3686,215 @@ end;
  function TQtWidget.SlotInputMethod(Sender: QObjectH; Event: QEventH): Boolean; cdecl;
  var
    InputEvent: QInputMethodEventH;
@@ -177,6 +190,7 @@ index 5adf4f34d9..6a284e7578 100644
 +  i: integer;
    KeyEvent: QKeyEventH;
 +  Msg: TLMessage;
++{$IFDEF useqmethodinput}
 +  // JPSupport (Qt6/SynEdit): preedit segment/cursor forwarding - see the
 +  // block after the existing "{ preedit }" section below.
 +  PreeditInfo: TIMEPreeditInfo;
@@ -186,6 +200,7 @@ index 5adf4f34d9..6a284e7578 100644
 +  SegAttrFocused, SegAttrBold: Boolean;
 +  SegFoundIdx, SegExistingIdx: Integer;
 +  WasComposing: Boolean;
++{$ENDIF}
  begin
 -  Result := True;
 +  Result := False;
@@ -207,7 +222,9 @@ index 5adf4f34d9..6a284e7578 100644
 +  QInputMethodEvent_commitString(InputEvent, @FCommitStr);
 +  QInputMethodEvent_preeditString(InputEvent, @FPreEditStr);
 +  WStr:=FCommitStr;
++{$IFDEF useqmethodinput}
 +  WasComposing := FIMPreedit;
++{$ENDIF}
 +  { commit }
 +  if FCommitStr<>'' then
 +  begin
@@ -234,6 +251,7 @@ index 5adf4f34d9..6a284e7578 100644
 +    DeliverMessage(Msg);
 +  end;
 +  FIMPreedit:=FPreEditStr<>'';
++{$IFDEF useqmethodinput}
 +  // JPSupport (Qt6/SynEdit): if we're about to insert committed text while
 +  // a preedit block from the PREVIOUS event is still sitting in the real
 +  // buffer (as temporary text - see LM_IM_SET_PREEDIT/SetImeTempText),
@@ -248,6 +266,7 @@ index 5adf4f34d9..6a284e7578 100644
 +    PreeditMsg.LParam := PtrInt(@PreeditInfo);
 +    TControl(LCLObject).Dispatch(PreeditMsg);
 +  end;
++{$ENDIF}
 +  { commit to keyinput }
 +  if WStr<>'' then
 +  begin
@@ -285,6 +304,7 @@ index 5adf4f34d9..6a284e7578 100644
 +      {$ENDIF}
 +    end;
 +  end;
++{$IFDEF useqmethodinput}
 +  // JPSupport (Qt6/SynEdit): forward the preedit string's segments
 +  // (bunsetsu) and cursor position to the control itself via
 +  // LM_IM_SET_PREEDIT - needed for custom-painted controls such as
@@ -349,6 +369,7 @@ index 5adf4f34d9..6a284e7578 100644
 +    PreeditMsg.Result := 0;
 +    TControl(LCLObject).Dispatch(PreeditMsg);
 +  end;
++{$ENDIF}
 +end;
  
 -  KeyEvent := QKeyEvent_create(QEventKeyPress, PtrInt(UnicodeChar), QGUIApplication_keyboardModifiers, @WStr, False, 1);
@@ -394,7 +415,7 @@ index 5adf4f34d9..6a284e7578 100644
  end;
  
  {------------------------------------------------------------------------------
-@@ -18181,6 +18359,8 @@ begin
+@@ -18181,6 +18367,8 @@ begin
      QWidget_setAutoFillBackground(Result, False);
  
    QWidget_setAttribute(Result, QtWA_InputMethodEnabled);

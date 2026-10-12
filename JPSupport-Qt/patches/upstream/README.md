@@ -37,3 +37,13 @@ approach as `LazSynImeFull` on Windows). Tested on Debian arm64
 - `jpsupport-qt-qt5-bindings.patch` - the same change for the Qt5
   widgetset (`qevent_c.cpp/.h`, `qt56.pas`, `qtwidgets.pas`). Needs
   `libQt5Pas` rebuilt.
+
+## `useqmethodinput` define
+
+The Qt bindings patches guard all JPSupport additions in `qtwidgets.pas`
+with `{$IFDEF useqmethodinput}`. The define is enabled in
+`lcl/interfaces/qt5|qt6/qtdefines.inc`. With the define disabled, the
+widgetset builds and links against an unmodified libQt5Pas/libQt6Pas
+(the new C accessors are not referenced), and TEdit/TMemo input behaves
+as before. The C binding changes (`qevent_c.cpp/.h`, `qt56.pas`/`qt62.pas`)
+are independent of the define.
