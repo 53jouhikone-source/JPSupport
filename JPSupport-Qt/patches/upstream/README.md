@@ -38,12 +38,19 @@ approach as `LazSynImeFull` on Windows). Tested on Debian arm64
   widgetset (`qevent_c.cpp/.h`, `qt56.pas`, `qtwidgets.pas`). Needs
   `libQt5Pas` rebuilt.
 
-## `useqmethodinput` define
+## `QTFULLINPUTMETHODSUPPORT` define
 
 The Qt bindings patches guard all JPSupport additions in `qtwidgets.pas`
-with `{$IFDEF useqmethodinput}`. The define is enabled in
-`lcl/interfaces/qt5|qt6/qtdefines.inc`. With the define disabled, the
-widgetset builds and links against an unmodified libQt5Pas/libQt6Pas
-(the new C accessors are not referenced), and TEdit/TMemo input behaves
-as before. The C binding changes (`qevent_c.cpp/.h`, `qt56.pas`/`qt62.pas`)
-are independent of the define.
+with `{$IFDEF QTFULLINPUTMETHODSUPPORT}`. As suggested by the Qt maintainer
+(forum topic 74458), the define is **disabled by default** in
+`lcl/interfaces/qt5|qt6/qtdefines.inc` (`{.$DEFINE QTFULLINPUTMETHODSUPPORT}`),
+because enabling it requires libQt5Pas/libQt6Pas to be rebuilt with the new
+C accessors. With the define disabled, the widgetset builds and links against
+an unmodified libQt5Pas/libQt6Pas, and TEdit/TMemo input behaves as before.
+The C binding changes (`qevent_c.cpp/.h`, `qt56.pas`/`qt62.pas`) are
+independent of the define.
+
+`apply_jpsupport_patches.py` enables the define after applying the patches
+(use `--keep-disabled` to leave it disabled). `regen_bindings_patches.py`
+regenerates the Qt5/Qt6 bindings patches from the working trees, which keep
+the define enabled for testing; the generated patches ship it disabled.
